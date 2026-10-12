@@ -74,10 +74,15 @@ class SearchViewModel @Inject constructor(
 
     fun download(track: RemoteTrack) {
         val s = _state.value
-        scheduler.enqueue(track, s.playlistTitle, s.results.indexOf(track).coerceAtLeast(0))
+        viewModelScope.launch {
+            scheduler.enqueue(track, s.playlistTitle, s.results.indexOf(track).coerceAtLeast(0))
+        }
     }
 
-    fun downloadAll() = scheduler.enqueueAll(_state.value.results, _state.value.playlistTitle)
+    fun downloadAll() {
+        val s = _state.value
+        viewModelScope.launch { scheduler.enqueueAll(s.results, s.playlistTitle) }
+    }
 
     fun cancel(track: RemoteTrack) = scheduler.cancel(track.id)
 }
