@@ -1,148 +1,88 @@
 package com.tuapp.eleuthera.ui.search
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.tuapp.eleuthera.data.download.DownloadScheduler
+import com.tuapp.eleuthera.data.youtube.YtDlpEngine
 import com.tuapp.eleuthera.domain.model.DownloadStatus
 import com.tuapp.eleuthera.domain.model.RemoteTrack
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
-@Composable
-fun SearchScreen(modifier: Modifier = Modifier, vm: SearchViewModel = hiltViewModel()) {
-    val state by vm.state.collectAsStateWithLifecycle()
-    val keyboard = LocalSoftwareKeyboardController.current
+data class SearchUiState(
+    val query: String = "",
+    val loading: Boolean = false,
+    val results: List<RemoteTrack> = emptyList(),
+    /** Nombre de la playlist si el resultado viene de un enlace de playlist. */
+    val playlistTitle: String? = null,
+    val downloads: Map<String, DownloadStatus> = emptyMap(),
+    val error: String? = null,
+)
 
-    Column(modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = state.query,
-            onValueChange = vm::onQueryChange,
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            singleLine = true,
-            placeholder = { Text("Buscar o pegar un enlace") },
-            trailingIcon = {
-                IconButton(onClick = { keyboard?.hide(); vm.submit() }) {
-                    Icon(Icons.Default.Search, contentDescription = "Buscar")
+@HiltViewModel
+class SearchViewModel @Inject constructor(
+    private val engine: YtDlpEngine,
+    private val scheduler: DownloadScheduler,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(SearchUiState())
+    val state: StateFlow<SearchUiState> = _state.asStateFlow()
+
+    private var searchJob: Job? = null
+
+    init {
+        // Las descargas viven en WorkManager: aquí solo se refleja su estado.
+        viewModelScope.launch {
+            scheduler.observe().collect { map -> _state.update { it.copy(downloads = map) } }
+        }
+    }
+
+    fun onQueryChange(text: String) = _state.update { it.copy(query = text) }
+
+    /** Si el texto es un enlace se resuelve tal cual; si no, se busca en YouTube. */
+    fun submit() {
+        val text = _state.value.query.trim()
+        if (text.isEmpty()) return
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            try {
+                val resolved =
+                    if (text.startsWith("http")) engine.resolve(text)
+                    else engine.resolve("ytsearch20:$text")
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        results = resolved.tracks,
+                        playlistTitle = resolved.playlistTitle,
+                    )
                 }
-            },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { keyboard?.hide(); vm.submit() }),
-        )
-
-        if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-
-        state.error?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(16.dp),
-            )
-        }
-
-        // Enlace de playlist: botón para descargarla entera.
-        state.playlistTitle?.let { title ->
-            ListItem(
-                headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                supportingContent = { Text("${state.results.size} canciones") },
-                trailingContent = {
-                    FilledTonalButton(onClick = vm::downloadAll) { Text("Descargar todo") }
-                },
-            )
-        }
-
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(state.results, key = { it.id }) { track ->
-                TrackRow(
-                    track = track,
-                    status = state.downloads[track.id],
-                    onDownload = { vm.download(track) },
-                    onCancel = { vm.cancel(track) },
-                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(loading = false, error = e.message ?: e.toString()) }
             }
         }
     }
-}
 
-@Composable
-private fun TrackRow(
-    track: RemoteTrack,
-    status: DownloadStatus?,
-    onDownload: () -> Unit,
-    onCancel: () -> Unit,
-) {
-    val failed = status is DownloadStatus.Failed
-    ListItem(
-        headlineContent = { Text(track.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        supportingContent = {
-            val detail = when (status) {
-                DownloadStatus.Queued -> "En cola…"
-                is DownloadStatus.Running -> "Descargando… ${status.percent} %"
-                DownloadStatus.Done -> "Guardado en Música/Eleuthera"
-                is DownloadStatus.Failed -> status.message
-                null -> listOf(track.author, formatDuration(track.durationSec))
-                    .filter { it.isNotEmpty() }.joinToString(" · ")
-            }
-            Text(
-                text = detail,
-                maxLines = if (failed) 6 else 2,
-                overflow = TextOverflow.Ellipsis,
-                color = if (failed) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        trailingContent = {
-            when (status) {
-                DownloadStatus.Queued -> IconButton(onClick = onCancel) {
-                    Icon(Icons.Default.Close, contentDescription = "Cancelar")
-                }
-                is DownloadStatus.Running -> IconButton(onClick = onCancel) {
-                    CircularProgressIndicator(
-                        progress = { status.percent / 100f },
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 3.dp,
-                    )
-                }
-                DownloadStatus.Done ->
-                    Icon(Icons.Default.CheckCircle, contentDescription = "Descargado")
-                is DownloadStatus.Failed -> IconButton(onClick = onDownload) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Reintentar")
-                }
-                null -> IconButton(onClick = onDownload) {
-                    Icon(Icons.Default.Download, contentDescription = "Descargar")
-                }
-            }
-        },
-    )
-}
+    fun download(track: RemoteTrack) {
+        val s = _state.value
+        viewModelScope.launch {
+            scheduler.enqueue(track, s.playlistTitle, s.results.indexOf(track).coerceAtLeast(0))
+        }
+    }
 
-private fun formatDuration(seconds: Long): String =
-    if (seconds <= 0) "" else "%d:%02d".format(seconds / 60, seconds % 60)
+    fun downloadAll() {
+        val s = _state.value
+        viewModelScope.launch { scheduler.enqueueAll(s.results, s.playlistTitle) }
+    }
+
+    fun cancel(track: RemoteTrack) = scheduler.cancel(track.id)
+}

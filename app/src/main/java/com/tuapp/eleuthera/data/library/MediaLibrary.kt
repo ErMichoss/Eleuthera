@@ -94,6 +94,14 @@ class MediaLibrary @Inject constructor(
         }
     }
 
+    /** true si la canción sigue en el dispositivo (no se ha borrado ni movido). */
+    suspend fun exists(trackId: Long): Boolean = withContext(Dispatchers.IO) {
+        ctx.contentResolver.query(
+            ContentUris.withAppendedId(collection, trackId),
+            arrayOf(MediaStore.Audio.Media._ID), null, null, null,
+        )?.use { it.count > 0 } ?: false
+    }
+
     /** Lista la música de la carpeta de la app. MediaStore ya lee las etiquetas ID3. */
     suspend fun scan(includeExtraFolders: Boolean = true): List<Track> = withContext(Dispatchers.IO) {
         // Música/Eleuthera siempre; además, las carpetas añadidas en Ajustes.

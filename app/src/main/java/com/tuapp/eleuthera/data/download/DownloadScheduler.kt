@@ -7,6 +7,10 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.tuapp.eleuthera.data.db.DownloadDao
+import com.tuapp.eleuthera.data.db.PlaylistRequestEntity
+import com.tuapp.eleuthera.data.library.MediaLibrary
+import com.tuapp.eleuthera.data.playlist.PlaylistRepository
 import com.tuapp.eleuthera.data.youtube.YtDlpEngine
 import com.tuapp.eleuthera.domain.model.DownloadStatus
 import com.tuapp.eleuthera.domain.model.RemoteTrack
@@ -20,13 +24,38 @@ import kotlinx.coroutines.flow.map
 class DownloadScheduler @Inject constructor(
     private val workManager: WorkManager,
     private val engine: YtDlpEngine,
+    private val dao: DownloadDao,
+    private val library: MediaLibrary,
+    private val playlists: PlaylistRepository,
 ) {
-    /** [index] es la posición de la canción dentro de su playlist de origen. */
-    fun enqueue(track: RemoteTrack, playlist: String? = null, index: Int = 0) {
+    /**
+     * Pide la canción, opcionalmente dentro de [playlist] en la posición [index].
+     * - Si ya está descargada, solo se añade a la playlist: no se descarga otra vez.
+     * - Si está en cola o descargándose, se apunta la playlist y se añadirá al terminar.
+     * - Si no, se encola la descarga.
+     */
+    suspend fun enqueue(track: RemoteTrack, playlist: String? = null, index: Int = 0) {
+        // 1. Primero se apunta la petición; el worker la resolverá al terminar.
+        if (playlist != null) dao.addRequest(PlaylistRequestEntity(track.id, playlist, index))
+
+        // 2. ¿Ya existe el archivo? Entonces basta con resolver las peticiones ahora.
+        dao.trackIdFor(track.id)?.let { trackId ->
+            if (library.exists(trackId)) {
+                dao.requestsFor(track.id).forEach {
+                    playlists.addDownloaded(it.playlistName, trackId, it.position)
+                }
+                dao.clearRequests(track.id)
+                return
+            }
+            dao.forget(track.id)   // el archivo se borró: hay que volver a descargarlo
+        }
+
+        // 3. Descarga. KEEP: si ya está en cola o en curso, no se duplica.
         val request = OneTimeWorkRequestBuilder<DownloadWorker>()
             .setInputData(
                 workDataOf(
                     DownloadWorker.KEY_URL to track.url,
+                    DownloadWorker.KEY_VIDEO_ID to track.id,
                     DownloadWorker.KEY_TITLE to track.title,
                     DownloadWorker.KEY_PLAYLIST to playlist,
                     DownloadWorker.KEY_INDEX to index,
@@ -49,7 +78,7 @@ class DownloadScheduler @Inject constructor(
         return resolved.tracks.size
     }
 
-    fun enqueueAll(tracks: List<RemoteTrack>, playlist: String?) =
+    suspend fun enqueueAll(tracks: List<RemoteTrack>, playlist: String?) =
         tracks.forEachIndexed { index, track -> enqueue(track, playlist, index) }
 
     fun cancel(trackId: String) = workManager.cancelUniqueWork(uniqueName(trackId))

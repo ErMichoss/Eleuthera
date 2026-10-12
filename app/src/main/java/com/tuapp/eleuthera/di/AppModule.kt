@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.work.WorkManager
 import com.tuapp.eleuthera.data.db.AppDatabase
+import com.tuapp.eleuthera.data.db.DownloadDao
 import com.tuapp.eleuthera.data.db.PlaylistDao
 import dagger.Module
 import dagger.Provides
@@ -23,9 +24,12 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "eleuthera.db")
-            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
             .build()
 
     @Provides
     fun providePlaylistDao(db: AppDatabase): PlaylistDao = db.playlistDao()
+
+    @Provides
+    fun provideDownloadDao(db: AppDatabase): DownloadDao = db.downloadDao()
 }

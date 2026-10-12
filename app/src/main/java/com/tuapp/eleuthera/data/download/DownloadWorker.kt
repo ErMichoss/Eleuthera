@@ -8,6 +8,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.tuapp.eleuthera.data.db.DownloadDao
+import com.tuapp.eleuthera.data.db.VideoTrackEntity
 import com.tuapp.eleuthera.data.library.MediaLibrary
 import com.tuapp.eleuthera.data.playlist.PlaylistRepository
 import com.tuapp.eleuthera.data.youtube.YtDlpEngine
@@ -36,6 +38,7 @@ class DownloadWorker @AssistedInject constructor(
     private val notifier: DownloadNotifier,
     private val limiter: DownloadLimiter,
     private val playlists: PlaylistRepository,
+    private val downloads: DownloadDao,
 ) : CoroutineWorker(ctx, params) {
 
     private val title get() = inputData.getString(KEY_TITLE).orEmpty()
@@ -63,14 +66,18 @@ class DownloadWorker @AssistedInject constructor(
                     }
                 }
                 val uri = library.publish(file, playlist)
-                // Canción de una playlist de YouTube: entra sola en la playlist del mismo nombre,
-                // en su posición original aunque las descargas terminen desordenadas.
-                if (playlist != null) {
-                    playlists.addDownloaded(
-                        playlistName = playlist,
-                        trackId = ContentUris.parseId(uri),
-                        position = inputData.getInt(KEY_INDEX, Int.MAX_VALUE),
-                    )
+                val trackId = ContentUris.parseId(uri)
+                val videoId = inputData.getString(KEY_VIDEO_ID)
+                if (videoId != null) {
+                    // Primero se registra el archivo y después se leen las peticiones: así una
+                    // playlist que pida esta canción justo ahora la encuentra por un lado u otro.
+                    downloads.setTrack(VideoTrackEntity(videoId, trackId))
+                    downloads.requestsFor(videoId).forEach {
+                        playlists.addDownloaded(it.playlistName, trackId, it.position)
+                    }
+                    downloads.clearRequests(videoId)
+                } else if (playlist != null) {
+                    playlists.addDownloaded(playlist, trackId, inputData.getInt(KEY_INDEX, Int.MAX_VALUE))
                 }
             }
             Result.success()
@@ -85,6 +92,7 @@ class DownloadWorker @AssistedInject constructor(
 
     companion object {
         const val KEY_URL = "url"
+        const val KEY_VIDEO_ID = "video_id"
         const val KEY_TITLE = "title"
         const val KEY_PLAYLIST = "playlist"
         const val KEY_INDEX = "index"
