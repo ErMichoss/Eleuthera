@@ -38,8 +38,10 @@ private data class FlatEntry(
 @Serializable
 data class Thumbnail(
     val url: String,
-    val height: Int,
-    val width: Int
+    // Opcionales: no todos los resultados de YouTube traen el tamaño, y si faltan
+    // la decodificación fallaría y con ella la búsqueda entera.
+    val height: Int? = null,
+    val width: Int? = null,
 )
 @Serializable
 private data class FlatResult(
@@ -186,7 +188,7 @@ class YtDlpEngine @Inject constructor(
             author = author.orEmpty(),
             durationSec = duration?.toLong() ?: 0,
             url = "https://www.youtube.com/watch?v=$id",
-            thumbnailUrl = thumbnails?.get(0)?.url ?: ""
+            thumbnailUrl = thumbnails?.firstOrNull()?.url.orEmpty()   // lista vacía = sin miniatura
         )
 
     private companion object { const val TAG = "YtDlpEngine" }

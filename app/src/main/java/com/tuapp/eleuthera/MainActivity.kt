@@ -113,6 +113,7 @@ private fun AppRoot(
     val trackActions = remember(playerVm) {
         TrackActions(
             onPlay = playerVm::play,
+            onShuffle = playerVm::playShuffled,
             onPlayNext = playerVm::playNext,
             onAddToQueue = playerVm::addToQueue,
             onAddToPlaylist = { trackForPlaylist = it },

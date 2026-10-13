@@ -291,7 +291,7 @@ private fun PlaylistDetail(
                         Text("Reproducir")
                     }
                     FilledTonalButton(
-                        onClick = { actions.onPlay(local.shuffled(), 0) },
+                        onClick = { actions.onShuffle(local) },
                         enabled = local.isNotEmpty(),
                         modifier = Modifier.weight(1f),
                     ) {

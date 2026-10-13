@@ -27,6 +27,7 @@ class PlayerViewModel @Inject constructor(private val player: PlayerController) 
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(2_000), 0L)
 
     fun play(tracks: List<Track>, index: Int) = player.play(tracks, index)
+    fun playShuffled(tracks: List<Track>) = player.playShuffled(tracks)
     fun playNext(track: Track) = player.playNext(track)
     fun addToQueue(track: Track) = player.addToQueue(track)
 
