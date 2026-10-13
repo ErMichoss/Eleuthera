@@ -32,8 +32,15 @@ private data class FlatEntry(
     val uploader: String? = null,
     val channel: String? = null,
     val duration: Double? = null,
+    val thumbnails: List<Thumbnail>? = null,
 )
 
+@Serializable
+data class Thumbnail(
+    val url: String,
+    val height: Int,
+    val width: Int
+)
 @Serializable
 private data class FlatResult(
     val id: String? = null,
@@ -43,6 +50,7 @@ private data class FlatResult(
     val duration: Double? = null,
     @SerialName("_type") val type: String? = null,
     val entries: List<FlatEntry> = emptyList(),
+    val thumbnails: List<Thumbnail>? = null,
 )
 
 /** Resultado de resolver una URL: un vídeo suelto o una playlist expandida. */
@@ -102,17 +110,20 @@ class YtDlpEngine @Inject constructor(
             tmp.deleteRecursively()
         }
         val r = json.decodeFromString<FlatResult>(out)
+        Log.d("YTDLP", "Parseando JSON")
         return if (r.type == "playlist") {
+            Log.d("YTDLP", "Playlist")
             val isSearch = target.startsWith("ytsearch")
             Resolved(
                 playlistTitle = r.title.takeUnless { isSearch },
                 tracks = r.entries.map {
-                    track(it.id, it.title, it.channel ?: it.uploader, it.duration)
+                    track(it.id, it.title, it.channel ?: it.uploader, it.duration, it.thumbnails)
                 },
             )
         } else {
+            Log.d("YTDLP", "Result")
             val id = r.id ?: error("yt-dlp no devolvió ningún vídeo")
-            Resolved(null, listOf(track(id, r.title, r.channel ?: r.uploader, r.duration)))
+            Resolved(null, listOf(track(id, r.title, r.channel ?: r.uploader, r.duration, r.thumbnails)))
         }
     }
 
@@ -168,13 +179,14 @@ class YtDlpEngine @Inject constructor(
             ?: error("yt-dlp terminó sin generar el archivo de audio")
     }
 
-    private fun track(id: String, title: String?, author: String?, duration: Double?) =
+    private fun track(id: String, title: String?, author: String?, duration: Double?, thumbnails: List<Thumbnail>?) =
         RemoteTrack(
             id = id,
             title = title.orEmpty(),
             author = author.orEmpty(),
             durationSec = duration?.toLong() ?: 0,
             url = "https://www.youtube.com/watch?v=$id",
+            thumbnailUrl = thumbnails?.get(0)?.url ?: ""
         )
 
     private companion object { const val TAG = "YtDlpEngine" }

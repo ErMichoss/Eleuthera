@@ -7,4 +7,5 @@ data class RemoteTrack(
     val author: String,
     val durationSec: Long,
     val url: String,
+    val thumbnailUrl: String
 )
