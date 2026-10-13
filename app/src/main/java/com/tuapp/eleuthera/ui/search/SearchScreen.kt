@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -27,12 +28,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.tuapp.eleuthera.domain.model.DownloadStatus
 import com.tuapp.eleuthera.domain.model.RemoteTrack
 import com.tuapp.eleuthera.ui.importer.ImportPanel
@@ -105,6 +109,16 @@ private fun TrackRow(
     val failed = status is DownloadStatus.Failed
     ListItem(
         headlineContent = { Text(track.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        leadingContent = {
+            AsyncImage(
+                model = track.thumbnailUrl,
+                contentDescription = track.title,
+                modifier = Modifier
+                    .size(width = 72.dp, height = 40.dp) // Proporción 16:9 típica de YouTube
+                    .clip(RoundedCornerShape(4.dp)),
+                contentScale = ContentScale.Crop
+            )
+        },
         supportingContent = {
             val detail = when (status) {
                 DownloadStatus.Queued -> "En cola…"
