@@ -8,13 +8,18 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.tuapp.eleuthera.data.settings.ThemeRepository
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.widget.MusicWidgetProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /** [key] es única dentro de la cola aunque la misma canción aparezca varias veces. */
 data class QueueItem(val key: String, val mediaId: String, val title: String, val artist: String)
@@ -40,7 +45,10 @@ data class PlayerState(
  * MediaController; la UI nunca toca ExoPlayer. Todos los métodos se llaman desde el hilo principal.
  */
 @Singleton
-class PlayerController @Inject constructor(@ApplicationContext ctx: Context) {
+class PlayerController @Inject constructor(
+    @ApplicationContext private val ctx: Context,
+    private val themeRepository: ThemeRepository,
+) {
 
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
@@ -61,6 +69,12 @@ class PlayerController @Inject constructor(@ApplicationContext ctx: Context) {
                 sync(it)
             }
         }, ContextCompat.getMainExecutor(ctx))
+
+        CoroutineScope(Dispatchers.Main).launch {
+            themeRepository.config.collect {
+                MusicWidgetProvider.updateWidget(ctx, _state.value)
+            }
+        }
     }
 
     private fun sync(p: Player) {
@@ -87,6 +101,7 @@ class PlayerController @Inject constructor(@ApplicationContext ctx: Context) {
             repeatMode = p.repeatMode,
             durationMs = p.duration.coerceAtLeast(0),
         )
+        MusicWidgetProvider.updateWidget(ctx, _state.value)
     }
 
     val positionMs: Long get() = controller?.currentPosition ?: 0L
