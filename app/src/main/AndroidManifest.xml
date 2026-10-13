@@ -40,6 +40,11 @@
             android:name=".ui.login.CookieLoginActivity"
             android:exported="false" />
 
+        <!-- Activity de testeo para probar las funcionalidades de Spotify -->
+        <activity
+            android:name=".ui.spotify.SpotifyActivity"
+            android:exported="false" />
+
         <!-- Reproductor: sigue sonando en segundo plano y publica la notificación multimedia -->
         <service
             android:name=".playback.PlaybackService"

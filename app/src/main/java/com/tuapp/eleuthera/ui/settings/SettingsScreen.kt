@@ -57,6 +57,7 @@ import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
 import com.tuapp.eleuthera.ui.login.CookieLoginActivity
+import com.tuapp.eleuthera.ui.spotify.SpotifyActivity
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
 
@@ -195,6 +196,7 @@ fun SettingsScreen(
         LibraryFoldersSection(libraryVm)
         DownloadSection(downloadsVm)
         CookiesSection(cookiesVm)
+        SpotifySection()
     }
 }
 
@@ -321,6 +323,24 @@ private fun ColorPickerDialog(initial: Int, onPick: (Int) -> Unit, onDismiss: ()
         confirmButton = { TextButton(onClick = { onPick(argb); onDismiss() }) { Text("Usar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
+}
+
+@Composable
+private fun SpotifySection() {
+    val context = LocalContext.current
+
+    SectionTitle("Cuenta de Spotify")
+    Column(
+        Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AppButton(
+            onClick = { context.startActivity(Intent(context, SpotifyActivity::class.java)) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Iniciar sesión en Spotify")
+        }
+    }
 }
 
 /** Cargar o quitar el cookies.txt de YouTube. */
