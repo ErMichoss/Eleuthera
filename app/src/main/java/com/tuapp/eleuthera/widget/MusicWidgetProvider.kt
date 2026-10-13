@@ -12,20 +12,26 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.widget.RemoteViews
-import androidx.core.content.ContextCompat
-import androidx.media3.common.Player
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
 import com.tuapp.eleuthera.MainActivity
 import com.tuapp.eleuthera.R
 import com.tuapp.eleuthera.data.settings.ThemeRepository
 import com.tuapp.eleuthera.domain.model.ThemeConfig
-import com.tuapp.eleuthera.playback.PlaybackService
+import com.tuapp.eleuthera.playback.PlayerController
 import com.tuapp.eleuthera.playback.PlayerState
+import com.tuapp.eleuthera.playback.RepeatMode
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
+/**
+ * Widget del reproductor. Los botones pasan por [PlayerController], igual que la app, para
+ * que el aleatorio y la repetición usen la misma lógica de cola.
+ */
+@AndroidEntryPoint
 class MusicWidgetProvider : AppWidgetProvider() {
+
+    @Inject lateinit var player: PlayerController
 
     override fun onUpdate(
         context: Context,
@@ -41,50 +47,22 @@ class MusicWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         val action = intent.action ?: return
         if (action in listOf(ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_PREV, ACTION_SHUFFLE, ACTION_REPEAT)) {
+            // Si la app no estaba abierta, el reproductor tarda un momento en conectar.
             val pendingResult = goAsync()
-            val appContext = context.applicationContext
-            executeMediaAction(appContext) { player ->
+            player.runWhenReady {
                 try {
                     when (action) {
-                        ACTION_PLAY_PAUSE -> {
-                            if (player.isPlaying) player.pause() else player.play()
-                        }
-                        ACTION_NEXT -> {
-                            if (player.hasNextMediaItem()) player.seekToNext()
-                        }
-                        ACTION_PREV -> {
-                            if (player.hasPreviousMediaItem()) player.seekToPrevious()
-                        }
-                        ACTION_SHUFFLE -> {
-                            player.shuffleModeEnabled = !player.shuffleModeEnabled
-                        }
-                        ACTION_REPEAT -> {
-                            player.repeatMode = when (player.repeatMode) {
-                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                                else -> Player.REPEAT_MODE_OFF
-                            }
-                        }
+                        ACTION_PLAY_PAUSE -> player.toggle()
+                        ACTION_NEXT -> player.next()
+                        ACTION_PREV -> player.previous()
+                        ACTION_SHUFFLE -> player.toggleShuffle()
+                        ACTION_REPEAT -> player.cycleRepeat()
                     }
                 } finally {
                     pendingResult.finish()
                 }
             }
         }
-    }
-
-    private fun executeMediaAction(appContext: Context, action: (Player) -> Unit) {
-        val token = SessionToken(appContext, ComponentName(appContext, PlaybackService::class.java))
-        val controllerFuture = MediaController.Builder(appContext, token).buildAsync()
-        controllerFuture.addListener({
-            try {
-                val controller = controllerFuture.get()
-                action(controller)
-                controller.release()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }, ContextCompat.getMainExecutor(appContext))
     }
 
     companion object {
@@ -94,16 +72,17 @@ class MusicWidgetProvider : AppWidgetProvider() {
         const val ACTION_SHUFFLE = "com.tuapp.eleuthera.widget.ACTION_SHUFFLE"
         const val ACTION_REPEAT = "com.tuapp.eleuthera.widget.ACTION_REPEAT"
 
-        fun updateWidget(context: Context, state: PlayerState) {
+        /** Redibuja el widget. [themeConfig] lo pasa PlayerController, ya leído del disco. */
+        fun updateWidget(context: Context, state: PlayerState, themeConfig: ThemeConfig) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val ids = appWidgetManager.getAppWidgetIds(
                 ComponentName(context, MusicWidgetProvider::class.java)
             )
             if (ids.isEmpty()) return
 
-            val themeConfig = runCatching {
-                runBlocking { ThemeRepository(context).config.first() }
-            }.getOrDefault(ThemeConfig())
+            // La carátula se decodifica reducida: el widget es pequeño y Android limita
+            // el tamaño de las imágenes que se le pueden enviar.
+            val artwork = state.artwork?.takeIf { it.isNotEmpty() }?.let { decodeSmall(it, 256) }
 
             for (id in ids) {
                 val views = RemoteViews(context.packageName, R.layout.widget_music_player)
@@ -145,10 +124,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 views.setInt(R.id.widget_btn_shuffle, "setColorFilter", shuffleColor)
 
                 // Botón Repetir (Repeat)
-                val repeatColor = if (state.repeatMode != Player.REPEAT_MODE_OFF) activeColor else inactiveColor
+                val repeatColor = if (state.repeat != RepeatMode.OFF) activeColor else inactiveColor
                 views.setInt(R.id.widget_btn_repeat, "setColorFilter", repeatColor)
 
-                val repeatIcon = if (state.repeatMode == Player.REPEAT_MODE_ONE) {
+                val repeatIcon = if (state.repeat == RepeatMode.ONE) {
                     R.drawable.ic_widget_repeat_one
                 } else {
                     R.drawable.ic_widget_repeat
@@ -156,13 +135,8 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 views.setImageViewResource(R.id.widget_btn_repeat, repeatIcon)
 
                 // Portada
-                if (state.artwork != null && state.artwork.isNotEmpty()) {
-                    val bitmap = BitmapFactory.decodeByteArray(state.artwork, 0, state.artwork.size)
-                    if (bitmap != null) {
-                        views.setImageViewBitmap(R.id.widget_artwork, bitmap)
-                    } else {
-                        views.setImageViewResource(R.id.widget_artwork, R.drawable.ic_widget_music_note)
-                    }
+                if (artwork != null) {
+                    views.setImageViewBitmap(R.id.widget_artwork, artwork)
                 } else {
                     views.setImageViewResource(R.id.widget_artwork, R.drawable.ic_widget_music_note)
                 }
@@ -192,6 +166,18 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
             setupPendingIntents(context, views)
             appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+
+        /** Decodifica la imagen a un tamaño aproximado de [maxPx] por lado. */
+        private fun decodeSmall(bytes: ByteArray, maxPx: Int): Bitmap? {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            var sample = 1
+            while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) {
+                sample *= 2
+            }
+            val options = BitmapFactory.Options().apply { inSampleSize = sample }
+            return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         }
 
         private fun createRoundedBackground(
