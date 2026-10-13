@@ -14,7 +14,8 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -34,6 +35,23 @@ class ImportScheduler @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val workManager: WorkManager,
 ) {
+    private val prefs = ctx.getSharedPreferences("imports", Context.MODE_PRIVATE)
+
+    /**
+     * Importaciones que el usuario ya cerró. Se guardan en disco porque WorkManager conserva
+     * los trabajos terminados varios días, y sin esto volverían a aparecer al reabrir la app.
+     */
+    private val dismissed = MutableStateFlow(prefs.getStringSet(KEY_DISMISSED, null).orEmpty())
+
+    /** Oculta una importación terminada para siempre y borra su lista de no encontradas. */
+    fun dismiss(status: ImportStatus) {
+        status.missingFile?.let { File(it).delete() }
+        // Se guardan como mucho las 100 últimas: las antiguas ya las habrá olvidado WorkManager.
+        val updated = (dismissed.value + status.id.toString()).toList().takeLast(100).toSet()
+        prefs.edit().putStringSet(KEY_DISMISSED, updated).apply()
+        dismissed.value = updated
+    }
+
     /** Lanza una importación en segundo plano. La lista va a un archivo (puede ser muy larga). */
     fun enqueue(playlist: String, tracks: List<ImportedTrack>) {
         val file = File(ctx.cacheDir, "imports/${UUID.randomUUID()}.json").apply {
@@ -56,10 +74,12 @@ class ImportScheduler @Inject constructor(
 
     fun cancel(id: UUID) = workManager.cancelWorkById(id)
 
-    /** Importaciones en curso o terminadas recientemente. */
+    /** Importaciones en curso o terminadas que el usuario aún no ha cerrado. */
     fun observe(): Flow<List<ImportStatus>> =
-        workManager.getWorkInfosByTagFlow(ImportWorker.TAG).map { infos ->
-            infos.filter { it.state != WorkInfo.State.CANCELLED }.map { info ->
+        combine(workManager.getWorkInfosByTagFlow(ImportWorker.TAG), dismissed) { infos, hidden ->
+            infos.filter {
+                it.state != WorkInfo.State.CANCELLED && it.id.toString() !in hidden
+            }.map { info ->
                 val finished = info.state.isFinished
                 val data = if (finished) info.outputData else info.progress
                 ImportStatus(
@@ -75,5 +95,8 @@ class ImportScheduler @Inject constructor(
             }
         }
 
-    private companion object { const val PLAYLIST_TAG = "import_playlist:" }
+    private companion object {
+        const val PLAYLIST_TAG = "import_playlist:"
+        const val KEY_DISMISSED = "dismissed"
+    }
 }
