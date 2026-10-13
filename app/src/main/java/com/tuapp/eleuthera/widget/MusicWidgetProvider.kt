@@ -120,6 +120,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
                     R.id.widget_title,
                     state.title.ifBlank { "Eleuthera" }
                 )
+                views.setTextColor(
+                    R.id.widget_title,
+                    themeConfig.primary
+                )
                 views.setTextViewText(
                     R.id.widget_artist,
                     state.artist.ifBlank { "Selecciona una canción" }
@@ -184,6 +188,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 themeConfig.cornerRadiusDp
             )
             views.setImageViewBitmap(R.id.widget_bg, bgBitmap)
+            views.setTextColor(R.id.widget_title, themeConfig.primary)
 
             setupPendingIntents(context, views)
             appWidgetManager.updateAppWidget(appWidgetId, views)
