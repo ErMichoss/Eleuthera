@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
@@ -41,6 +42,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -334,9 +336,11 @@ private fun PlaylistDetail(
                     },
                     trailingContent = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { vm.remove(track) }) {
-                                Icon(Icons.Default.Close, contentDescription = "Quitar de la playlist")
-                            }
+                            PlaylistTrackMenu(
+                                track = track,
+                                actions = actions,
+                                onRemove = { vm.remove(track) },
+                            )
                             Icon(
                                 Icons.Default.DragHandle,
                                 contentDescription = "Arrastrar para reordenar",
@@ -388,6 +392,36 @@ private fun PlaylistDetail(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } },
         )
+    }
+}
+
+/** Menú ⋮ de una canción dentro de una playlist. */
+@Composable
+private fun PlaylistTrackMenu(track: Track, actions: TrackActions, onRemove: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Default.MoreVert, contentDescription = "Más opciones")
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text("Reproducir a continuación") },
+                onClick = { open = false; actions.onPlayNext(track) },
+            )
+            DropdownMenuItem(
+                text = { Text("Añadir a la cola") },
+                onClick = { open = false; actions.onAddToQueue(track) },
+            )
+            DropdownMenuItem(
+                text = { Text("Añadir a otra playlist") },
+                onClick = { open = false; actions.onAddToPlaylist(track) },
+            )
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text("Quitar de esta playlist") },
+                onClick = { open = false; onRemove() },
+            )
+        }
     }
 }
 
