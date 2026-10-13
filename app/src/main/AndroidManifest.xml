@@ -50,6 +50,23 @@
             </intent-filter>
         </service>
 
+        <!-- Widget del reproductor de música (estilo Spotify / AIMP) -->
+        <receiver
+            android:name=".widget.MusicWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.tuapp.eleuthera.widget.ACTION_PLAY_PAUSE" />
+                <action android:name="com.tuapp.eleuthera.widget.ACTION_NEXT" />
+                <action android:name="com.tuapp.eleuthera.widget.ACTION_PREV" />
+                <action android:name="com.tuapp.eleuthera.widget.ACTION_SHUFFLE" />
+                <action android:name="com.tuapp.eleuthera.widget.ACTION_REPEAT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/music_widget_info" />
+        </receiver>
+
         <!-- Servicio que usa WorkManager para las descargas en primer plano (Android 14+ exige el tipo) -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

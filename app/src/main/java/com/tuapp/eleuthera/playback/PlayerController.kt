@@ -9,6 +9,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.widget.MusicWidgetProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,7 +41,7 @@ data class PlayerState(
  * MediaController; la UI nunca toca ExoPlayer. Todos los métodos se llaman desde el hilo principal.
  */
 @Singleton
-class PlayerController @Inject constructor(@ApplicationContext ctx: Context) {
+class PlayerController @Inject constructor(@ApplicationContext private val ctx: Context) {
 
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
@@ -87,6 +88,7 @@ class PlayerController @Inject constructor(@ApplicationContext ctx: Context) {
             repeatMode = p.repeatMode,
             durationMs = p.duration.coerceAtLeast(0),
         )
+        MusicWidgetProvider.updateWidget(ctx, _state.value)
     }
 
     val positionMs: Long get() = controller?.currentPosition ?: 0L
