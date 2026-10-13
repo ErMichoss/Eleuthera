@@ -20,6 +20,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
 
 enum class RepeatMode { OFF, ALL, ONE }
@@ -98,6 +100,9 @@ class PlayerController @Inject constructor(
         }
     }
 
+    /** Acciones pedidas antes de conectar con el reproductor (p. ej. desde el widget). */
+    private val pendingActions = mutableListOf<() -> Unit>()
+
     init {
         val token = SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))
         val future = MediaController.Builder(ctx, token).buildAsync()
@@ -107,14 +112,26 @@ class PlayerController @Inject constructor(
                 it.shuffleModeEnabled = false   // el aleatorio lo hace esta clase
                 it.addListener(listener)
                 sync(it)
+                pendingActions.forEach { action -> action() }
+                pendingActions.clear()
             }
         }, ContextCompat.getMainExecutor(ctx))
 
+        // Widget: se redibuja solo cuando cambia algo que muestra (no en cada evento del
+        // reproductor, que llegan varias veces por segundo) o cuando cambia el tema.
         CoroutineScope(Dispatchers.Main).launch {
-            themeRepository.config.collect {
-                MusicWidgetProvider.updateWidget(ctx, _state.value)
-            }
+            combine(_state, themeRepository.config) { s, theme -> s to theme }
+                .distinctUntilChangedBy { (s, theme) ->
+                    listOf(s.mediaId, s.title, s.artist, s.isPlaying, s.shuffle, s.repeat,
+                        s.artwork?.size, theme)
+                }
+                .collect { (s, theme) -> MusicWidgetProvider.updateWidget(ctx, s, theme) }
         }
+    }
+
+    /** Ejecuta [action] en cuanto el reproductor esté conectado (al momento si ya lo está). */
+    fun runWhenReady(action: () -> Unit) {
+        if (controller != null) action() else pendingActions += action
     }
 
     private fun sync(p: Player) {
@@ -146,7 +163,6 @@ class PlayerController @Inject constructor(
             repeat = repeat,
             durationMs = p.duration.coerceAtLeast(0),
         )
-        MusicWidgetProvider.updateWidget(ctx, _state.value)
     }
 
     val positionMs: Long get() = controller?.currentPosition ?: 0L
