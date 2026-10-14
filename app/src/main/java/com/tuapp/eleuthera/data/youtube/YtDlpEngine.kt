@@ -92,6 +92,20 @@ class YtDlpEngine @Inject constructor(
         }
     }
 
+    /** Versión instalada de yt-dlp (p. ej. "2026.09.27"), o null si aún no se conoce. */
+    suspend fun binaryVersion(): String? = withContext(Dispatchers.IO) {
+        runCatching { ensureReady(); YoutubeDL.getInstance().versionName(ctx) }.getOrNull()
+    }
+
+    /** Busca y descarga una versión nueva de yt-dlp. true = se actualizó, false = ya estaba al día. */
+    suspend fun updateNow(): Boolean = withContext(Dispatchers.IO) {
+        ensureReady()
+        initMutex.withLock {
+            YoutubeDL.getInstance().updateYoutubeDL(ctx, YoutubeDL.UpdateChannel.STABLE) ==
+                    YoutubeDL.UpdateStatus.DONE
+        }
+    }
+
     suspend fun search(query: String, limit: Int = 20): List<RemoteTrack> =
         resolve("ytsearch$limit:$query").tracks
 
