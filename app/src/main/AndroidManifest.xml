@@ -42,7 +42,7 @@
 
         <!-- Activity de testeo para probar las funcionalidades de Spotify -->
         <activity
-            android:name=".ui.spotify.SpotifyActivity"
+            android:name=".ui.musicbrainz.MusicBrainzActivity"
             android:exported="false" />
 
         <!-- Reproductor: sigue sonando en segundo plano y publica la notificación multimedia -->

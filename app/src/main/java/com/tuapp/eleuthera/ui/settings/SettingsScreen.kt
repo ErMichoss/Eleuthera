@@ -57,7 +57,7 @@ import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
 import com.tuapp.eleuthera.ui.login.CookieLoginActivity
-import com.tuapp.eleuthera.ui.spotify.SpotifyActivity
+import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzActivity
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
 
@@ -196,7 +196,7 @@ fun SettingsScreen(
         LibraryFoldersSection(libraryVm)
         DownloadSection(downloadsVm)
         CookiesSection(cookiesVm)
-        SpotifySection()
+        MusicBrainzSection()
     }
 }
 
@@ -326,19 +326,19 @@ private fun ColorPickerDialog(initial: Int, onPick: (Int) -> Unit, onDismiss: ()
 }
 
 @Composable
-private fun SpotifySection() {
+private fun MusicBrainzSection() {
     val context = LocalContext.current
 
-    SectionTitle("Cuenta de Spotify")
+    SectionTitle("Music Brainz")
     Column(
         Modifier.padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         AppButton(
-            onClick = { context.startActivity(Intent(context, SpotifyActivity::class.java)) },
+            onClick = { context.startActivity(Intent(context, MusicBrainzActivity::class.java)) },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Iniciar sesión en Spotify")
+            Text("Buscar en MusicBrainz")
         }
     }
 }
