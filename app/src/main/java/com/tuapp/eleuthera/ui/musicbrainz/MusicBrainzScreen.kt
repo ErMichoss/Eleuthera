@@ -32,12 +32,12 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // --- PANEL DE BÚSQUEDA ---
+            // Panel de búsqueda
             Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Selector de Tipo
+                    // Selector de tipo (Recording o Album)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
                             selected = viewModel.searchType == SearchType.RECORDING,
@@ -85,7 +85,7 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                 Text(text = error, color = MaterialTheme.colorScheme.error)
             }
 
-            // --- RESULTADOS EN LISTA ---
+            // Resultados de busqueda
             Box(modifier = Modifier.fillMaxSize()) {
                 if (viewModel.searchType == SearchType.RECORDING) {
                     LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -136,7 +136,17 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
         }
     }
 
-    // Modal para ver la carátula en alta resolución
+    // Modal para ver la caratula en alta resolución
+    /* TODO: Mostrar todos los metadatos relevantes en este modal
+     * Artista
+     * Genero
+     * Compositor
+     * Anio
+     * Letrista
+     * Numero de pista (opcional)
+     * Numero de disco (opcional)
+     * Artista del album? (puede que no se pueda)
+     */
     if (viewModel.isModalOpen) {
         Dialog(onDismissRequest = { viewModel.closeImageModal() }) {
             Card(

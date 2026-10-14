@@ -12,7 +12,7 @@ class MusicBrainzActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Aplica el tema propio de tu aplicación aquí si lo deseas
+            //TODO: Aplicar el tema de app
             MaterialTheme {
                 MusicBrainzScreen(viewModel = viewModel)
             }
