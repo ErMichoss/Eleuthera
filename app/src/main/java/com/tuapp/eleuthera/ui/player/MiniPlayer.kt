@@ -41,15 +41,17 @@ fun MiniPlayer(vm: PlayerViewModel, onExpand: () -> Unit, modifier: Modifier = M
     val state by vm.state.collectAsStateWithLifecycle()
     if (!state.hasMedia) return
     val position by vm.positionMs.collectAsStateWithLifecycle()
+    val skin by vm.progressSkin.collectAsStateWithLifecycle()
+    val fraction = if (state.durationMs > 0) position.toFloat() / state.durationMs else 0f
 
     Surface(modifier.fillMaxWidth().clickable(onClick = onExpand), tonalElevation = 6.dp) {
         Column {
-            LinearProgressIndicator(
-                progress = {
-                    if (state.durationMs > 0) position.toFloat() / state.durationMs else 0f
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            val current = skin
+            if (current != null) {
+                SkinnedTrack(fraction, current)
+            } else {
+                LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+            }
             Row(
                 Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,

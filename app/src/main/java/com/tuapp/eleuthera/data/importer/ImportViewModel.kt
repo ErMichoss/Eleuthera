@@ -12,14 +12,12 @@ import com.tuapp.eleuthera.domain.model.ImportedTrack
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
-import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -41,12 +39,9 @@ class ImportViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private val dismissed = MutableStateFlow<Set<UUID>>(emptySet())
-
-    /** Importaciones visibles (las cerradas por el usuario se ocultan). */
-    val imports: StateFlow<List<ImportStatus>> =
-        combine(scheduler.observe(), dismissed) { all, hidden -> all.filter { it.id !in hidden } }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Importaciones visibles; las cerradas por el usuario ya vienen filtradas. */
+    val imports: StateFlow<List<ImportStatus>> = scheduler.observe()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun onFilePicked(uri: Uri) {
         viewModelScope.launch {
@@ -81,7 +76,7 @@ class ImportViewModel @Inject constructor(
     fun cancelPending() { _pending.value = null }
     fun clearError() { _error.value = null }
     fun cancel(status: ImportStatus) = scheduler.cancel(status.id)
-    fun dismiss(status: ImportStatus) { dismissed.value = dismissed.value + status.id }
+    fun dismiss(status: ImportStatus) = scheduler.dismiss(status)
 
     suspend fun missingSongs(status: ImportStatus): List<String> = withContext(Dispatchers.IO) {
         status.missingFile?.let { File(it) }?.takeIf { it.exists() }

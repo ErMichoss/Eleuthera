@@ -38,8 +38,10 @@ private data class FlatEntry(
 @Serializable
 data class Thumbnail(
     val url: String,
-    val height: Int,
-    val width: Int
+    // Opcionales: no todos los resultados de YouTube traen el tamaño, y si faltan
+    // la decodificación fallaría y con ella la búsqueda entera.
+    val height: Int? = null,
+    val width: Int? = null,
 )
 @Serializable
 private data class FlatResult(
@@ -87,6 +89,20 @@ class YtDlpEngine @Inject constructor(
                 }.onFailure { Log.w(TAG, "No se pudo actualizar yt-dlp", it) }
             }
             ready = true
+        }
+    }
+
+    /** Versión instalada de yt-dlp (p. ej. "2026.09.27"), o null si aún no se conoce. */
+    suspend fun binaryVersion(): String? = withContext(Dispatchers.IO) {
+        runCatching { ensureReady(); YoutubeDL.getInstance().versionName(ctx) }.getOrNull()
+    }
+
+    /** Busca y descarga una versión nueva de yt-dlp. true = se actualizó, false = ya estaba al día. */
+    suspend fun updateNow(): Boolean = withContext(Dispatchers.IO) {
+        ensureReady()
+        initMutex.withLock {
+            YoutubeDL.getInstance().updateYoutubeDL(ctx, YoutubeDL.UpdateChannel.STABLE) ==
+                    YoutubeDL.UpdateStatus.DONE
         }
     }
 
@@ -186,7 +202,7 @@ class YtDlpEngine @Inject constructor(
             author = author.orEmpty(),
             durationSec = duration?.toLong() ?: 0,
             url = "https://www.youtube.com/watch?v=$id",
-            thumbnailUrl = thumbnails?.get(0)?.url ?: ""
+            thumbnailUrl = thumbnails?.firstOrNull()?.url.orEmpty()   // lista vacía = sin miniatura
         )
 
     private companion object { const val TAG = "YtDlpEngine" }

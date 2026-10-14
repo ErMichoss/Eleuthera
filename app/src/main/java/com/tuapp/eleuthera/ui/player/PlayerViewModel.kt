@@ -2,6 +2,8 @@ package com.tuapp.eleuthera.ui.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tuapp.eleuthera.data.settings.LoadedSkin
+import com.tuapp.eleuthera.data.settings.ProgressSkinRepository
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.playback.PlayerController
 import com.tuapp.eleuthera.playback.PlayerState
@@ -14,7 +16,14 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
-class PlayerViewModel @Inject constructor(private val player: PlayerController) : ViewModel() {
+class PlayerViewModel @Inject constructor(
+    private val player: PlayerController,
+    skins: ProgressSkinRepository,
+) : ViewModel() {
+
+    /** Diseño de la barra de progreso; null = la barra normal. */
+    val progressSkin: StateFlow<LoadedSkin?> =
+        skins.active.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val state: StateFlow<PlayerState> = player.state
 
@@ -27,6 +36,7 @@ class PlayerViewModel @Inject constructor(private val player: PlayerController) 
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(2_000), 0L)
 
     fun play(tracks: List<Track>, index: Int) = player.play(tracks, index)
+    fun playShuffled(tracks: List<Track>) = player.playShuffled(tracks)
     fun playNext(track: Track) = player.playNext(track)
     fun addToQueue(track: Track) = player.addToQueue(track)
 

@@ -72,6 +72,8 @@ private val audioPermission =
 data class TrackActions(
     /** Lista visible e índice pulsado: se reproduce desde ahí y el resto queda en cola. */
     val onPlay: (tracks: List<Track>, index: Int) -> Unit = { _, _ -> },
+    /** Activa el aleatorio y reproduce la lista empezando por una canción al azar. */
+    val onShuffle: (tracks: List<Track>) -> Unit = {},
     val onPlayNext: (Track) -> Unit = {},
     val onAddToQueue: (Track) -> Unit = {},
     val onAddToPlaylist: (Track) -> Unit = {},
@@ -87,7 +89,7 @@ fun LibraryScreen(
     var granted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, audioPermission) ==
-                PackageManager.PERMISSION_GRANTED
+                    PackageManager.PERMISSION_GRANTED
         )
     }
     val launcher =

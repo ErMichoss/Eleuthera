@@ -56,6 +56,7 @@ import com.tuapp.eleuthera.ui.search.SearchScreen
 import com.tuapp.eleuthera.ui.settings.SettingsScreen
 import com.tuapp.eleuthera.ui.settings.ThemeViewModel
 import com.tuapp.eleuthera.ui.theme.AppTheme
+import com.tuapp.eleuthera.ui.update.UpdatePrompt
 import dagger.hilt.android.AndroidEntryPoint
 
 private enum class Section(val label: String, val icon: ImageVector) {
@@ -113,6 +114,7 @@ private fun AppRoot(
     val trackActions = remember(playerVm) {
         TrackActions(
             onPlay = playerVm::play,
+            onShuffle = playerVm::playShuffled,
             onPlayNext = playerVm::playNext,
             onAddToQueue = playerVm::addToQueue,
             onAddToPlaylist = { trackForPlaylist = it },
@@ -145,6 +147,9 @@ private fun AppRoot(
                 Section.SETTINGS -> SettingsScreen(modifier, themeVm)
             }
         }
+
+        // Aviso de versión nueva publicada en GitHub.
+        UpdatePrompt()
 
         trackForPlaylist?.let { track ->
             AddToPlaylistDialog(track, playlistsVm, onDismiss = { trackForPlaylist = null })
