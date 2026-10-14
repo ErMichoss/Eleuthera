@@ -88,7 +88,15 @@ fun AboutPage(vm: AboutViewModel, onBack: () -> Unit, modifier: Modifier = Modif
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             headlineContent = { Text("Eleuthera") },
             supportingContent = { Text("Versión ${state.appVersion}") },
+            trailingContent = {
+                if (state.checkingApp) {
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    TextButton(onClick = vm::checkAppUpdate) { Text("Buscar") }
+                }
+            },
         )
+        state.appMessage?.let { SettingsHint(it) }
         ListItem(
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             headlineContent = { Text("Motor de descarga (yt-dlp)") },
