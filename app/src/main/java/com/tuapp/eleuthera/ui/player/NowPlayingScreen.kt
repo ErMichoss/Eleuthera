@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tuapp.eleuthera.data.settings.LoadedSkin
 import com.tuapp.eleuthera.playback.PlayerState
 import com.tuapp.eleuthera.playback.QueueItem
 import com.tuapp.eleuthera.playback.RepeatMode
@@ -112,7 +113,8 @@ fun NowPlayingScreen(vm: PlayerViewModel, onClose: () -> Unit, modifier: Modifie
                 overflow = TextOverflow.Ellipsis,
             )
 
-            SeekBar(position, state.durationMs, vm::seekTo)
+            val skin by vm.progressSkin.collectAsStateWithLifecycle()
+            SeekBar(position, state.durationMs, skin, state.isPlaying, vm::seekTo)
             Controls(state, vm)
             Spacer(Modifier.height(16.dp))
         }
@@ -120,22 +122,40 @@ fun NowPlayingScreen(vm: PlayerViewModel, onClose: () -> Unit, modifier: Modifie
 }
 
 @Composable
-private fun SeekBar(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
+private fun SeekBar(
+    positionMs: Long,
+    durationMs: Long,
+    skin: LoadedSkin?,
+    isPlaying: Boolean,
+    onSeek: (Long) -> Unit,
+) {
     // Mientras se arrastra se muestra el valor del dedo, no el del reproductor.
     var dragging by remember { mutableStateOf<Float?>(null) }
     val duration = durationMs.coerceAtLeast(1).toFloat()
     val shown = dragging ?: positionMs.toFloat().coerceIn(0f, duration)
 
-    Slider(
-        value = shown,
-        onValueChange = { dragging = it },
-        onValueChangeFinished = {
-            dragging?.let { onSeek(it.toLong()) }
-            dragging = null
-        },
-        valueRange = 0f..duration,
-        enabled = durationMs > 0,
-    )
+    val finish = {
+        dragging?.let { onSeek(it.toLong()) }
+        dragging = null
+    }
+    if (skin != null) {
+        SkinnedSeekBar(
+            fraction = shown / duration,
+            skin = skin,
+            isPlaying = isPlaying,
+            onScrub = { dragging = it * duration },
+            onScrubEnd = finish,
+            enabled = durationMs > 0,
+        )
+    } else {
+        Slider(
+            value = shown,
+            onValueChange = { dragging = it },
+            onValueChangeFinished = finish,
+            valueRange = 0f..duration,
+            enabled = durationMs > 0,
+        )
+    }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(formatTime(shown.toLong()), style = MaterialTheme.typography.labelSmall)
         Text(formatTime(durationMs), style = MaterialTheme.typography.labelSmall)
