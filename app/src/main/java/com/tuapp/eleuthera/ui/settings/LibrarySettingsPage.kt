@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,6 +37,30 @@ fun LibrarySettingsPage(vm: LibrarySettingsViewModel, onBack: () -> Unit, modifi
                     "mp3, m4a, webm, opus, ogg, flac y wav."
         )
         LibraryFoldersSection(vm)
+        SectionTitle("Acceso rápido")
+        QuickPlaylistsSwitch(vm)
+    }
+}
+
+/** Activa el botón flotante de playlists rápidas. */
+@Composable
+private fun QuickPlaylistsSwitch(vm: LibrarySettingsViewModel) {
+    val enabled by vm.quickPlaylists.collectAsStateWithLifecycle()
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Playlists rápidas", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "Muestra un botón flotante para reproducir o añadir a la cola cualquier playlist " +
+                        "sin salir de la pantalla en la que estés.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = enabled, onCheckedChange = vm::setQuickPlaylists)
     }
 }
 

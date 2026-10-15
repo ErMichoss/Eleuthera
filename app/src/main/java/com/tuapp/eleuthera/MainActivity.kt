@@ -52,8 +52,10 @@ import com.tuapp.eleuthera.ui.player.MiniPlayer
 import com.tuapp.eleuthera.ui.player.NowPlayingScreen
 import com.tuapp.eleuthera.ui.player.PlayerViewModel
 import com.tuapp.eleuthera.ui.playlists.AddToPlaylistDialog
+import com.tuapp.eleuthera.ui.playlists.PlaylistTarget
 import com.tuapp.eleuthera.ui.playlists.PlaylistsScreen
 import com.tuapp.eleuthera.ui.playlists.PlaylistsViewModel
+import com.tuapp.eleuthera.ui.playlists.QuickPlaylistsOverlay
 import com.tuapp.eleuthera.ui.search.SearchScreen
 import com.tuapp.eleuthera.ui.settings.SettingsScreen
 import com.tuapp.eleuthera.ui.settings.ThemeViewModel
@@ -110,8 +112,8 @@ private fun AppRoot(
 ) {
     var section by rememberSaveable { mutableStateOf(Section.SEARCH) }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
-    // Canción para la que se está eligiendo playlist (null = diálogo cerrado).
-    var trackForPlaylist by remember { mutableStateOf<Track?>(null) }
+    // Canción o lista para la que se está eligiendo playlist (null = diálogo cerrado).
+    var playlistTarget by remember { mutableStateOf<PlaylistTarget?>(null) }
 
     val trackActions = remember(playerVm) {
         TrackActions(
@@ -119,11 +121,15 @@ private fun AppRoot(
             onShuffle = playerVm::playShuffled,
             onPlayNext = playerVm::playNext,
             onAddToQueue = playerVm::addToQueue,
-            onAddToPlaylist = { trackForPlaylist = it },
+            onAddToPlaylist = { playlistTarget = PlaylistTarget(it) },
             onPlayNextAll = playerVm::playNextAll,
             onAddAllToQueue = playerVm::addAllToQueue,
+            onAddAllToPlaylist = { label, tracks -> playlistTarget = PlaylistTarget(label, tracks) },
         )
     }
+
+    // Botón flotante de playlists rápidas (opcional, Ajustes > Biblioteca).
+    val quickAccess by playlistsVm.quickAccess.collectAsStateWithLifecycle()
 
     // Qué canción suena: lo leen las listas para resaltarla.
     val nowPlaying by playerVm.nowPlaying.collectAsStateWithLifecycle()
@@ -147,20 +153,36 @@ private fun AppRoot(
                     }
                 },
             ) { padding ->
-                val modifier = Modifier.fillMaxSize().padding(padding)
-                when (section) {
-                    Section.SEARCH -> SearchScreen(modifier)
-                    Section.LIBRARY -> LibraryScreen(modifier, trackActions)
-                    Section.PLAYLISTS -> PlaylistsScreen(modifier, trackActions, playlistsVm)
-                    Section.SETTINGS -> SettingsScreen(modifier, themeVm)
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                    val modifier = Modifier.fillMaxSize()
+                    when (section) {
+                        Section.SEARCH -> SearchScreen(modifier)
+                        Section.LIBRARY -> LibraryScreen(modifier, trackActions)
+                        Section.PLAYLISTS -> PlaylistsScreen(modifier, trackActions, playlistsVm)
+                        Section.SETTINGS -> SettingsScreen(modifier, themeVm)
+                    }
+
+                    // Playlists rápidas: botón arrastrable por encima de la pantalla actual.
+                    if (quickAccess && section != Section.SETTINGS) {
+                        // Solo se cargan las playlists mientras el botón está visible.
+                        val playlists by playlistsVm.playlists.collectAsStateWithLifecycle()
+                        val position by playlistsVm.quickButtonPosition.collectAsStateWithLifecycle()
+                        QuickPlaylistsOverlay(
+                            playlists = playlists,
+                            actions = trackActions,
+                            loadTracks = playlistsVm::tracksOf,
+                            savedPosition = position,
+                            onPositionChange = playlistsVm::saveQuickButtonPosition,
+                        )
+                    }
                 }
             }
 
             // Aviso de versión nueva publicada en GitHub.
             UpdatePrompt()
 
-            trackForPlaylist?.let { track ->
-                AddToPlaylistDialog(track, playlistsVm, onDismiss = { trackForPlaylist = null })
+            playlistTarget?.let { target ->
+                AddToPlaylistDialog(target, playlistsVm, onDismiss = { playlistTarget = null })
             }
 
             // Reproductor a pantalla completa, por encima de todo.

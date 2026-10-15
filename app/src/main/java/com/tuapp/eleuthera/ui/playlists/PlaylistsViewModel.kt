@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuapp.eleuthera.data.playlist.PlaylistRepository
+import com.tuapp.eleuthera.data.settings.LibrarySettings
 import com.tuapp.eleuthera.domain.model.Playlist
 import com.tuapp.eleuthera.domain.model.Track
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,7 +22,22 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
-class PlaylistsViewModel @Inject constructor(private val repo: PlaylistRepository) : ViewModel() {
+class PlaylistsViewModel @Inject constructor(
+    private val repo: PlaylistRepository,
+    private val librarySettings: LibrarySettings,
+) : ViewModel() {
+
+    /** Si el usuario activó el botón flotante de playlists rápidas (Ajustes > Biblioteca). */
+    val quickAccess: StateFlow<Boolean> = librarySettings.quickPlaylists
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Posición guardada del botón flotante (fracciones 0..1), o null si nunca se movió. */
+    val quickButtonPosition: StateFlow<Pair<Float, Float>?> = librarySettings.quickButtonPosition
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    fun saveQuickButtonPosition(x: Float, y: Float) {
+        viewModelScope.launch { librarySettings.setQuickButtonPosition(x, y) }
+    }
 
     val playlists: StateFlow<List<Playlist>> =
         repo.playlists().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -44,13 +60,18 @@ class PlaylistsViewModel @Inject constructor(private val repo: PlaylistRepositor
     fun open(playlistId: Long) { _openId.value = playlistId }
     fun close() { _openId.value = null }
 
-    fun create(name: String, firstTrack: Track? = null) {
+    /** Crea una playlist, opcionalmente ya con [tracks] dentro. */
+    fun create(name: String, tracks: List<Track> = emptyList()) {
         if (name.isBlank()) return
         viewModelScope.launch {
             val id = repo.create(name)
-            firstTrack?.let { repo.add(id, it.id) }
+            if (tracks.isNotEmpty()) repo.addAll(id, tracks.map { it.id })
         }
     }
+
+    /** Añade varias canciones a una playlist. Devuelve cuántas eran nuevas (las repetidas se saltan). */
+    suspend fun addAll(playlistId: Long, tracks: List<Track>): Int =
+        repo.addAll(playlistId, tracks.map { it.id })
 
     fun delete(playlistId: Long) {
         if (_openId.value == playlistId) close()
@@ -73,6 +94,7 @@ class PlaylistsViewModel @Inject constructor(private val repo: PlaylistRepositor
     }
 
     fun remove(track: Track) = withOpen { repo.remove(it, track.id) }
+    fun removeAll(tracks: List<Track>) = withOpen { repo.removeAll(it, tracks.map(Track::id)) }
     fun reorder(orderedTrackIds: List<Long>) = withOpen { repo.reorder(it, orderedTrackIds) }
 
     private fun withOpen(block: suspend (Long) -> Unit) {

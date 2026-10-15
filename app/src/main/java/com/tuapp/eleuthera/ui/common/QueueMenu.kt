@@ -3,7 +3,7 @@ package com.tuapp.eleuthera.ui.common
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -22,9 +22,9 @@ import com.tuapp.eleuthera.domain.model.Track
 import kotlinx.coroutines.launch
 
 /**
- * Botón para mandar una lista entera (playlist, álbum, artista, carpeta) a la cola.
- * [loadTracks] es suspend para poder usarlo desde la cuadrícula de playlists, donde las
- * canciones aún no están cargadas.
+ * Menú para una lista entera (playlist, álbum, artista, carpeta): mandarla a la cola o
+ * añadirla a una playlist. [loadTracks] es suspend para poder usarlo desde la cuadrícula de
+ * playlists, donde las canciones aún no están cargadas.
  */
 @Composable
 fun QueueMenuButton(
@@ -32,7 +32,9 @@ fun QueueMenuButton(
     onPlayNext: (List<Track>) -> Unit,
     onAddToQueue: (List<Track>) -> Unit,
     modifier: Modifier = Modifier,
-    icon: ImageVector = Icons.AutoMirrored.Filled.QueueMusic,
+    /** Si no es null, el menú ofrece "Añadir a playlist" con todas las canciones. */
+    onAddToPlaylist: ((List<Track>) -> Unit)? = null,
+    icon: ImageVector = Icons.Default.MoreVert,
 ) {
     var open by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -52,11 +54,23 @@ fun QueueMenuButton(
 
     Box(modifier) {
         IconButton(onClick = { open = true }) {
-            Icon(icon, contentDescription = "Añadir a la cola")
+            Icon(icon, contentDescription = "Más opciones")
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text("Reproducir a continuación") }, onClick = { send(next = true) })
             DropdownMenuItem(text = { Text("Añadir a la cola") }, onClick = { send(next = false) })
+            if (onAddToPlaylist != null) {
+                DropdownMenuItem(
+                    text = { Text("Añadir a playlist") },
+                    onClick = {
+                        open = false
+                        scope.launch {
+                            val tracks = loadTracks()
+                            if (tracks.isNotEmpty()) onAddToPlaylist(tracks)
+                        }
+                    },
+                )
+            }
         }
     }
 }

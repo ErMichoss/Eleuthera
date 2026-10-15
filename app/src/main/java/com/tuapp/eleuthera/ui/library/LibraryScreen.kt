@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,6 +63,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.common.QueueMenuButton
+import com.tuapp.eleuthera.ui.common.SelectionBar
+import com.tuapp.eleuthera.ui.common.selectableRowColors
+import com.tuapp.eleuthera.ui.common.trackRowClicks
 import com.tuapp.eleuthera.ui.common.TrackRowArt
 import com.tuapp.eleuthera.ui.common.trackRowColors
 import kotlinx.coroutines.launch
@@ -83,6 +87,11 @@ data class TrackActions(
     val onPlayNextAll: (List<Track>) -> Unit = {},
     /** Varias canciones al final de la cola del usuario. */
     val onAddAllToQueue: (List<Track>) -> Unit = {},
+    /**
+     * Varias canciones a una playlist. [label] es lo que se añade ("Nevermind") y se propone
+     * como nombre de playlist nueva; null para una selección suelta.
+     */
+    val onAddAllToPlaylist: (label: String?, tracks: List<Track>) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -130,8 +139,30 @@ fun LibraryScreen(
     }
     val onDelete: (Track) -> Unit = { toDelete = it }
 
+    // ---- Selección múltiple ----
+    // Mantener pulsada una canción empieza a seleccionar; cambiar de pestaña o grupo la cancela.
+    var selected by remember { mutableStateOf(emptySet<Long>()) }
+    val selecting = selected.isNotEmpty()
+    LaunchedEffect(state.tab, open?.name) { selected = emptySet() }
+    BackHandler(enabled = selecting) { selected = emptySet() }
+    val visible = open?.tracks ?: state.tracks
+    val toggle: (Track) -> Unit = { t ->
+        selected = if (t.id in selected) selected - t.id else selected + t.id
+    }
+
     Column(modifier.fillMaxSize()) {
-        OutlinedTextField(
+        if (selecting) {
+            SelectionBar(
+                selected = visible.filter { it.id in selected },
+                total = visible.size,
+                onClose = { selected = emptySet() },
+                onSelectAll = { selected = visible.mapTo(HashSet()) { it.id } },
+                onClearAll = { selected = emptySet() },
+                onPlayNext = actions.onPlayNextAll,
+                onAddToQueue = actions.onAddAllToQueue,
+                onAddToPlaylist = { actions.onAddAllToPlaylist(null, it) },
+            )
+        } else OutlinedTextField(
             value = state.query,
             onValueChange = vm::setQuery,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -161,10 +192,11 @@ fun LibraryScreen(
                         loadTracks = { open.tracks },
                         onPlayNext = actions.onPlayNextAll,
                         onAddToQueue = actions.onAddAllToQueue,
+                        onAddToPlaylist = { actions.onAddAllToPlaylist(open.name, it) },
                     )
                 },
             )
-            TrackList(open.tracks, actions, onDelete)
+            TrackList(open.tracks, actions, onDelete, selected, toggle)
             return@Column
         }
 
@@ -183,7 +215,7 @@ fun LibraryScreen(
             state.empty -> Centered { Hint("Aún no hay música.\nDescarga algo desde Buscar.") }
             state.tracks.isEmpty() -> Centered { Hint("Nada coincide con \"${state.query.trim()}\".") }
             else -> when (state.tab) {
-                LibraryTab.SONGS -> TrackList(state.tracks, actions, onDelete)
+                LibraryTab.SONGS -> TrackList(state.tracks, actions, onDelete, selected, toggle)
                 LibraryTab.ARTISTS -> GroupList(state.artists, Icons.Default.Person, vm::openGroup)
                 LibraryTab.ALBUMS -> GroupList(state.albums, Icons.Default.Album, vm::openGroup)
                 LibraryTab.FOLDERS -> GroupList(state.folders, Icons.Default.Folder, vm::openGroup)
@@ -216,15 +248,31 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun TrackList(tracks: List<Track>, actions: TrackActions, onDelete: (Track) -> Unit) {
+private fun TrackList(
+    tracks: List<Track>,
+    actions: TrackActions,
+    onDelete: (Track) -> Unit,
+    selected: Set<Long>,
+    onToggle: (Track) -> Unit,
+) {
+    val selecting = selected.isNotEmpty()
     LazyColumn(Modifier.fillMaxSize()) {
         items(tracks.size, key = { tracks[it].id }) { index ->
             val track = tracks[index]
+            val isSelected = track.id in selected
             ListItem(
-                modifier = Modifier.clickable { actions.onPlay(tracks, index) },
-                colors = trackRowColors(track),
+                modifier = Modifier.trackRowClicks(
+                    selecting = selecting,
+                    onPlay = { actions.onPlay(tracks, index) },
+                    onToggle = { onToggle(track) },
+                ),
+                colors = selectableRowColors(track, isSelected),
                 leadingContent = { TrackRowArt(track) },
-                trailingContent = { TrackMenu(track, actions, onDelete) },
+                trailingContent = {
+                    // Con selección activa, una casilla en vez del menú ⋮.
+                    if (selecting) Checkbox(checked = isSelected, onCheckedChange = { onToggle(track) })
+                    else TrackMenu(track, actions, onDelete)
+                },
                 headlineContent = {
                     Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
