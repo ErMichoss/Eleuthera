@@ -194,9 +194,7 @@ private fun SkinEditor(
                 )
             }
         }
-        if (skin.mode == TrackMode.REVEAL) {
-            Hint("Revelar usa una sola imagen de barra completa: se ve a color lo escuchado y apagado lo pendiente.")
-        }
+        Hint(skin.mode.description)
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Girar el indicador al reproducir", modifier = Modifier.weight(1f))
