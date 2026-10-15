@@ -1,6 +1,8 @@
 package com.tuapp.eleuthera.ui.musicbrainz
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -8,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tuapp.eleuthera.BuildConfig
 import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzService
 import com.tuapp.eleuthera.data.musicbrainz.Recording
 import com.tuapp.eleuthera.data.musicbrainz.Release
@@ -41,6 +44,21 @@ class MusicBrainzViewModel : ViewModel() {
 
     // Instanciamos nuestro servicio centralizado
     private val musicBrainzService = MusicBrainzService()
+
+    fun startOAuthLogin(context: Context) {
+        val clientId = BuildConfig.MUSICBRAINZ_CLIENT_ID // El Client ID que obtienes al registrar tu app en MusicBrainz
+        val redirectUri = "com.tuapp.eleuthera://oauth"
+
+        val authUrl = Uri.parse("https://musicbrainz.org/oauth2/authorize").buildUpon()
+            .appendQueryParameter("client_id", clientId)
+            .appendQueryParameter("response_type", "code")
+            .appendQueryParameter("redirect_uri", redirectUri)
+            .appendQueryParameter("scope", "tag rating") // Ajusta los permisos que necesites
+            .build()
+
+        val intent = Intent(Intent.ACTION_VIEW, authUrl)
+        context.startActivity(intent)
+    }
 
     // Función que invoca la Activity al recibir el deep link
     fun exchangeCodeForToken(code: String) {

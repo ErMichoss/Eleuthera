@@ -2,6 +2,7 @@ package com.tuapp.eleuthera.data.musicbrainz
 
 import android.util.Log
 import com.google.gson.Gson
+import com.tuapp.eleuthera.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
@@ -29,13 +30,13 @@ class MusicBrainzService {
         }
         .build()
 
-    // NUEVA FUNCIÓN: Intercambia el código por el token y lo almacena
+    // Intercambia el código por el token y lo almacena
     suspend fun exchangeCodeForToken(code: String): Boolean {
         return withContext(Dispatchers.IO) {
             try {
                 val response = api.exchangeToken(
-                    clientId = "Awkov",
-                    clientSecret = "LOLlol910",
+                    clientId = BuildConfig.MUSICBRAINZ_CLIENT_ID,
+                    clientSecret = BuildConfig.MUSICBRAINZ_CLIENT_SECRET,
                     code = code
                 )
                 accessToken = response.accessToken
