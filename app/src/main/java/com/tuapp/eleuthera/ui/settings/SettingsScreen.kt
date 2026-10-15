@@ -72,6 +72,7 @@ import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
 import com.tuapp.eleuthera.ui.login.CookieLoginActivity
+import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzActivity
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
 
@@ -140,6 +141,7 @@ private fun SettingsMenu(
                 },
             )
         }
+        MusicBrainzSection()
     }
 }
 
@@ -173,4 +175,23 @@ private fun rememberSubtitles(
         SettingsPage.ACCOUNT to if (cookies) "Sesión guardada" else "Sin cookies",
         SettingsPage.ABOUT to "Versión ${about.appVersion}",
     )
+}
+
+/*MusicBrainz*/
+@Composable
+private fun MusicBrainzSection() {
+    val context = LocalContext.current
+
+    SectionTitle("Music Brainz")
+    Column(
+        Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AppButton(
+            onClick = { context.startActivity(Intent(context, MusicBrainzActivity::class.java)) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Buscar en MusicBrainz")
+        }
+    }
 }
