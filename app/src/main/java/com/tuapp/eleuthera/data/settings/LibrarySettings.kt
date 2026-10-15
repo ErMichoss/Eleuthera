@@ -4,7 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -27,6 +29,34 @@ data class LibraryFolder(val treeUri: Uri, val label: String)
 class LibrarySettings @Inject constructor(@ApplicationContext private val ctx: Context) {
 
     private val treesKey = stringSetPreferencesKey("folder_trees")
+    private val quickPlaylistsKey = booleanPreferencesKey("quick_playlists")
+
+    /** Botón flotante con tus playlists para reproducirlas o encolarlas desde cualquier pantalla. */
+    val quickPlaylists: Flow<Boolean> = ctx.libraryStore.data.map { it[quickPlaylistsKey] ?: false }
+
+    suspend fun setQuickPlaylists(enabled: Boolean) {
+        ctx.libraryStore.edit { it[quickPlaylistsKey] = enabled }
+    }
+
+    private val quickXKey = floatPreferencesKey("quick_button_x")
+    private val quickYKey = floatPreferencesKey("quick_button_y")
+
+    /**
+     * Dónde dejó el usuario el botón flotante, en fracciones del área disponible
+     * (0,0 = arriba a la izquierda; 1,1 = abajo a la derecha). null = posición por defecto.
+     */
+    val quickButtonPosition: Flow<Pair<Float, Float>?> = ctx.libraryStore.data.map { p ->
+        val x = p[quickXKey]
+        val y = p[quickYKey]
+        if (x != null && y != null) x to y else null
+    }
+
+    suspend fun setQuickButtonPosition(x: Float, y: Float) {
+        ctx.libraryStore.edit {
+            it[quickXKey] = x
+            it[quickYKey] = y
+        }
+    }
 
     /** Formato antiguo (solo la ruta, sin permiso). Se muestran para que el usuario las vuelva a añadir. */
     private val legacyKey = stringSetPreferencesKey("extra_folders")

@@ -42,13 +42,17 @@ abstract class PlaylistDao {
     abstract suspend fun delete(playlistId: Long)
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    abstract suspend fun insertTracks(items: List<PlaylistTrackEntity>)
+    /** Devuelve el rowId de cada fila, o -1 si ya estaba (se ignora). */
+    abstract suspend fun insertTracks(items: List<PlaylistTrackEntity>): List<Long>
 
     @Query("SELECT MAX(position) FROM playlist_tracks WHERE playlistId = :playlistId")
     abstract suspend fun maxPosition(playlistId: Long): Int?
 
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
     abstract suspend fun removeTrack(playlistId: Long, trackId: Long)
+
+    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId IN (:trackIds)")
+    abstract suspend fun removeTracks(playlistId: Long, trackIds: List<Long>)
 
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId")
     abstract suspend fun clear(playlistId: Long)
@@ -58,6 +62,17 @@ abstract class PlaylistDao {
     open suspend fun addTrack(playlistId: Long, trackId: Long) {
         val next = (maxPosition(playlistId) ?: -1) + 1
         insertTracks(listOf(PlaylistTrackEntity(playlistId, trackId, next)))
+    }
+
+    /**
+     * Añade varias canciones al final, en su orden. Las que ya estaban se saltan.
+     * Devuelve cuántas se añadieron de verdad.
+     */
+    @Transaction
+    open suspend fun addTracks(playlistId: Long, trackIds: List<Long>): Int {
+        val start = (maxPosition(playlistId) ?: -1) + 1
+        val rows = trackIds.distinct().mapIndexed { i, id -> PlaylistTrackEntity(playlistId, id, start + i) }
+        return insertTracks(rows).count { it != -1L }
     }
 
     /**

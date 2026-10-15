@@ -91,7 +91,14 @@ class PlaylistRepository @Inject constructor(
     suspend fun reorder(playlistId: Long, orderedTrackIds: List<Long>) =
         dao.replaceTracks(playlistId, orderedTrackIds)
     suspend fun add(playlistId: Long, trackId: Long) = dao.addTrack(playlistId, trackId)
+
+    /** Añade varias canciones (un álbum, otra playlist...). Devuelve cuántas eran nuevas. */
+    suspend fun addAll(playlistId: Long, trackIds: List<Long>): Int = dao.addTracks(playlistId, trackIds)
     suspend fun remove(playlistId: Long, trackId: Long) = dao.removeTrack(playlistId, trackId)
+
+    /** Quita varias canciones de la playlist (no las borra del dispositivo). */
+    suspend fun removeAll(playlistId: Long, trackIds: List<Long>) =
+        trackIds.chunked(500).forEach { dao.removeTracks(playlistId, it) }
 
     /** Canción recién descargada de una playlist de YouTube: va a la playlist homónima. */
     suspend fun addDownloaded(playlistName: String, trackId: Long, position: Int) =
