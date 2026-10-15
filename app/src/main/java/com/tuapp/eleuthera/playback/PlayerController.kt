@@ -237,20 +237,28 @@ class PlayerController @Inject constructor(
 
     // ---- Cola ----
 
-    /** Primera de la cola del usuario: suena justo después de la actual. */
-    fun playNext(track: Track) {
+    fun playNext(track: Track) = playNext(listOf(track))
+    fun addToQueue(track: Track) = addToQueue(listOf(track))
+
+    /**
+     * Primeras de la cola del usuario: suenan justo después de la actual, en su orden.
+     * Sirve para una canción o para una playlist entera.
+     */
+    fun playNext(tracks: List<Track>) {
         val c = controller ?: return
-        if (c.mediaItemCount == 0) return play(listOf(track))
-        c.addMediaItem(c.currentMediaItemIndex + 1, track.toMediaItem(userQueued = true))
+        if (tracks.isEmpty()) return
+        if (c.mediaItemCount == 0) return play(tracks)
+        c.addMediaItems(c.currentMediaItemIndex + 1, tracks.map { it.toMediaItem(userQueued = true) })
     }
 
     /** Al final de la cola del usuario, pero antes que el resto de la playlist. */
-    fun addToQueue(track: Track) {
+    fun addToQueue(tracks: List<Track>) {
         val c = controller ?: return
-        if (c.mediaItemCount == 0) return play(listOf(track))
+        if (tracks.isEmpty()) return
+        if (c.mediaItemCount == 0) return play(tracks)
         var pos = c.currentMediaItemIndex + 1
         while (pos < c.mediaItemCount && c.getMediaItemAt(pos).isUserQueued) pos++
-        c.addMediaItem(pos, track.toMediaItem(userQueued = true))
+        c.addMediaItems(pos, tracks.map { it.toMediaItem(userQueued = true) })
     }
 
     /** Mueve una canción pendiente; [from] y [to] son posiciones reales del reproductor. */

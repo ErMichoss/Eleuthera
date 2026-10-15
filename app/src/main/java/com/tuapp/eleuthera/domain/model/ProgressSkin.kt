@@ -4,13 +4,24 @@ import kotlinx.serialization.Serializable
 
 /** Cómo se dibujan las imágenes de las barras. */
 @Serializable
-enum class TrackMode(val label: String) {
+enum class TrackMode(val label: String, val description: String) {
     /** La imagen se repite en horizontal. */
-    TILE("Mosaico"),
+    TILE(
+        "Mosaico",
+        "Mosaico repite la imagen una y otra vez a lo largo de la barra, sin deformarla. " +
+                "Va bien con patrones pequeños: puntos, rayas, píxeles…",
+    ),
     /** La imagen se estira a lo ancho de la barra. */
-    STRETCH("Estirar"),
+    STRETCH(
+        "Estirar",
+        "Estirar ajusta la imagen al ancho de la barra, aunque se deforme. " +
+                "Va bien con degradados o diseños hechos a la medida de la barra.",
+    ),
     /** Una sola imagen de barra completa: en color lo escuchado, apagado lo pendiente. */
-    REVEAL("Revelar"),
+    REVEAL(
+        "Revelar",
+        "Revelar usa una sola imagen de barra completa: se ve a color lo escuchado y apagado lo pendiente.",
+    ),
 }
 
 /** Las tres imágenes que se pueden personalizar. */

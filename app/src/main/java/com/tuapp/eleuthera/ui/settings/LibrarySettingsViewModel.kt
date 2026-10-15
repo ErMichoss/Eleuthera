@@ -26,6 +26,13 @@ class LibrarySettingsViewModel @Inject constructor(
     val legacyFolders: StateFlow<List<String>> = settings.legacyFolders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val quickPlaylists: StateFlow<Boolean> = settings.quickPlaylists
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setQuickPlaylists(enabled: Boolean) {
+        viewModelScope.launch { settings.setQuickPlaylists(enabled) }
+    }
+
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 

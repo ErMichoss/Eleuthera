@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
@@ -69,7 +70,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuapp.eleuthera.domain.model.Playlist
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.common.PlaylistCover
-import com.tuapp.eleuthera.ui.common.TrackArt
+import com.tuapp.eleuthera.ui.common.QueueMenuButton
+import com.tuapp.eleuthera.ui.common.TrackRowArt
+import com.tuapp.eleuthera.ui.common.SelectionAction
+import com.tuapp.eleuthera.ui.common.SelectionBar
+import com.tuapp.eleuthera.ui.common.selectableRowColors
+import com.tuapp.eleuthera.ui.common.trackRowClicks
 import com.tuapp.eleuthera.ui.library.TrackActions
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
@@ -89,13 +95,18 @@ fun PlaylistsScreen(
     BackHandler(enabled = open != null) { vm.close() }
 
     if (open != null) PlaylistDetail(open, actions, vm, modifier)
-    else PlaylistGrid(playlists, vm, modifier)
+    else PlaylistGrid(playlists, actions, vm, modifier)
 }
 
 // ---------- Cuadrícula de playlists ----------
 
 @Composable
-private fun PlaylistGrid(playlists: List<Playlist>, vm: PlaylistsViewModel, modifier: Modifier) {
+private fun PlaylistGrid(
+    playlists: List<Playlist>,
+    actions: TrackActions,
+    vm: PlaylistsViewModel,
+    modifier: Modifier,
+) {
     var creating by remember { mutableStateOf(false) }
 
     Column(modifier.fillMaxSize()) {
@@ -138,19 +149,31 @@ private fun PlaylistGrid(playlists: List<Playlist>, vm: PlaylistsViewModel, modi
                             customCover = playlist.customCover,
                         )
                         Spacer(Modifier.height(8.dp))
-                        Text(
-                            playlist.name,
-                            modifier = Modifier.padding(horizontal = 10.dp),
-                            style = MaterialTheme.typography.titleSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            "${playlist.trackCount} canciones",
-                            modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    playlist.name,
+                                    modifier = Modifier.padding(horizontal = 10.dp),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    "${playlist.trackCount} canciones",
+                                    modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (playlist.trackCount > 0) {
+                                QueueMenuButton(
+                                    loadTracks = { vm.tracksOf(playlist.id) },
+                                    onPlayNext = actions.onPlayNextAll,
+                                    onAddToQueue = actions.onAddAllToQueue,
+                                    onAddToPlaylist = { actions.onAddAllToPlaylist(playlist.name, it) },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -213,146 +236,187 @@ private fun PlaylistDetail(
         }
     }
 
-    LazyColumn(modifier.fillMaxSize(), state = listState) {
-        item(key = "header") {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                Row(Modifier.fillMaxWidth()) {
-                    IconButton(onClick = vm::close) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+    // ---- Selección múltiple ----
+    var selected by remember { mutableStateOf(emptySet<Long>()) }
+    val selecting = selected.isNotEmpty()
+    BackHandler(enabled = selecting) { selected = emptySet() }
+    val toggle: (Track) -> Unit = { t ->
+        selected = if (t.id in selected) selected - t.id else selected + t.id
+    }
+
+    Column(modifier.fillMaxSize()) {
+        if (selecting) {
+            SelectionBar(
+                selected = local.filter { it.id in selected },
+                total = local.size,
+                onClose = { selected = emptySet() },
+                onSelectAll = { selected = local.mapTo(HashSet()) { it.id } },
+                onClearAll = { selected = emptySet() },
+                onPlayNext = actions.onPlayNextAll,
+                onAddToQueue = actions.onAddAllToQueue,
+                onAddToPlaylist = { actions.onAddAllToPlaylist(null, it) },
+                extraActions = listOf(
+                    SelectionAction("Quitar de esta playlist", destructive = true) { vm.removeAll(it) },
+                ),
+            )
+        }
+        LazyColumn(Modifier.fillMaxSize(), state = listState) {
+            item(key = "header") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    Row(Modifier.fillMaxWidth()) {
+                        IconButton(onClick = vm::close) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        if (local.isNotEmpty()) {
+                            QueueMenuButton(
+                                loadTracks = { local },
+                                onPlayNext = actions.onPlayNextAll,
+                                onAddToQueue = actions.onAddAllToQueue,
+                                onAddToPlaylist = { actions.onAddAllToPlaylist(playlist.name, it) },
+                            )
+                        }
+                        IconButton(onClick = { renaming = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Renombrar playlist")
+                        }
+                        IconButton(onClick = { confirmDelete = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Eliminar playlist")
+                        }
                     }
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { renaming = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Renombrar playlist")
-                    }
-                    IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Eliminar playlist")
-                    }
-                }
-                // Tocar la portada permite cambiarla por una imagen propia.
-                Box(Modifier.align(Alignment.CenterHorizontally)) {
-                    PlaylistCover(
-                        playlist.covers,
-                        Modifier
-                            .size(200.dp)
-                            .clip(MaterialTheme.shapes.large)
-                            .clickable { coverMenu = true },
-                        customCover = playlist.customCover,
-                    )
-                    Icon(
-                        Icons.Default.PhotoCamera,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.5f))
-                            .padding(6.dp),
-                    )
-                    DropdownMenu(expanded = coverMenu, onDismissRequest = { coverMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Elegir imagen") },
-                            onClick = {
-                                coverMenu = false
-                                imagePicker.launch(
-                                    PickVisualMediaRequest(
-                                        ActivityResultContracts.PickVisualMedia.ImageOnly
-                                    )
-                                )
-                            },
+                    // Tocar la portada permite cambiarla por una imagen propia.
+                    Box(Modifier.align(Alignment.CenterHorizontally)) {
+                        PlaylistCover(
+                            playlist.covers,
+                            Modifier
+                                .size(200.dp)
+                                .clip(MaterialTheme.shapes.large)
+                                .clickable { coverMenu = true },
+                            customCover = playlist.customCover,
                         )
-                        if (playlist.customCover != null) {
+                        Icon(
+                            Icons.Default.PhotoCamera,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .padding(6.dp),
+                        )
+                        DropdownMenu(expanded = coverMenu, onDismissRequest = { coverMenu = false }) {
                             DropdownMenuItem(
-                                text = { Text("Volver al mosaico automático") },
-                                onClick = { coverMenu = false; vm.clearCover(playlist.id) },
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    playlist.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    "${playlist.trackCount} canciones · ${formatTotal(playlist.durationMs)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AppButton(
-                        onClick = { actions.onPlay(local, 0) },
-                        enabled = local.isNotEmpty(),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Reproducir")
-                    }
-                    FilledTonalButton(
-                        onClick = { actions.onShuffle(local) },
-                        enabled = local.isNotEmpty(),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(Icons.Default.Shuffle, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Aleatorio")
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-
-        if (local.isEmpty()) {
-            item(key = "empty") {
-                Text(
-                    "Playlist vacía.\nAñade canciones desde Biblioteca con el menú ⋮.",
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
-                )
-            }
-        }
-
-        itemsIndexed(local, key = { _, track -> track.id }) { index, track ->
-            ReorderableItem(reorderState, key = track.id) { dragging ->
-                ListItem(
-                    modifier = Modifier.clickable { actions.onPlay(local, index) },
-                    colors = ListItemDefaults.colors(
-                        containerColor = if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh
-                        else MaterialTheme.colorScheme.surface,
-                    ),
-                    leadingContent = {
-                        TrackArt(track.uri, Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)))
-                    },
-                    headlineContent = {
-                        Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    },
-                    supportingContent = {
-                        Text(track.artist, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    },
-                    trailingContent = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            PlaylistTrackMenu(
-                                track = track,
-                                actions = actions,
-                                onRemove = { vm.remove(track) },
-                            )
-                            Icon(
-                                Icons.Default.DragHandle,
-                                contentDescription = "Arrastrar para reordenar",
-                                modifier = Modifier
-                                    .draggableHandle(
-                                        onDragStopped = { vm.reorder(local.map { it.id }) },
+                                text = { Text("Elegir imagen") },
+                                onClick = {
+                                    coverMenu = false
+                                    imagePicker.launch(
+                                        PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.ImageOnly
+                                        )
                                     )
-                                    .padding(12.dp),
+                                },
                             )
+                            if (playlist.customCover != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Volver al mosaico automático") },
+                                    onClick = { coverMenu = false; vm.clearCover(playlist.id) },
+                                )
+                            }
                         }
-                    },
-                )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        playlist.name,
+                        style = MaterialTheme.typography.headlineSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "${playlist.trackCount} canciones · ${formatTotal(playlist.durationMs)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        AppButton(
+                            onClick = { actions.onPlay(local, 0) },
+                            enabled = local.isNotEmpty(),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Reproducir")
+                        }
+                        FilledTonalButton(
+                            onClick = { actions.onShuffle(local) },
+                            enabled = local.isNotEmpty(),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(Icons.Default.Shuffle, contentDescription = null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Aleatorio")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+
+            if (local.isEmpty()) {
+                item(key = "empty") {
+                    Text(
+                        "Playlist vacía.\nAñade canciones desde Biblioteca con el menú ⋮.",
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    )
+                }
+            }
+
+            itemsIndexed(local, key = { _, track -> track.id }) { index, track ->
+                ReorderableItem(reorderState, key = track.id) { dragging ->
+                    val isSelected = track.id in selected
+                    ListItem(
+                        modifier = Modifier.trackRowClicks(
+                            selecting = selecting,
+                            onPlay = { actions.onPlay(local, index) },
+                            onToggle = { toggle(track) },
+                        ),
+                        colors = selectableRowColors(
+                            track,
+                            isSelected,
+                            base = if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh
+                            else MaterialTheme.colorScheme.surface,
+                        ),
+                        leadingContent = { TrackRowArt(track) },
+                        headlineContent = {
+                            Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        },
+                        supportingContent = {
+                            Text(track.artist, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        },
+                        trailingContent = {
+                            // Con selección activa, una casilla en vez del menú y el asa de arrastre.
+                            if (selecting) {
+                                Checkbox(checked = isSelected, onCheckedChange = { toggle(track) })
+                            } else Row(verticalAlignment = Alignment.CenterVertically) {
+                                PlaylistTrackMenu(
+                                    track = track,
+                                    actions = actions,
+                                    onRemove = { vm.remove(track) },
+                                )
+                                Icon(
+                                    Icons.Default.DragHandle,
+                                    contentDescription = "Arrastrar para reordenar",
+                                    modifier = Modifier
+                                        .draggableHandle(
+                                            onDragStopped = { vm.reorder(local.map { it.id }) },
+                                        )
+                                        .padding(12.dp),
+                                )
+                            }
+                        },
+                    )
+                }
             }
         }
     }
