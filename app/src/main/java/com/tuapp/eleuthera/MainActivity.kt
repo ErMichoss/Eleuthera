@@ -1,6 +1,7 @@
 package com.tuapp.eleuthera
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -68,8 +69,12 @@ private enum class Section(val label: String, val icon: ImageVector) {
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private var openPlayerRequest by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openPlayerRequest = intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)
+        intent.removeExtra(EXTRA_OPEN_PLAYER)
         enableEdgeToEdge()
         setContent {
             // Android 13+: sin este permiso no se ve el progreso de las descargas.
@@ -95,8 +100,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            AppTheme(theme) { AppRoot(themeVm = themeVm) }
+            AppTheme(theme) {
+                AppRoot(
+                    themeVm = themeVm,
+                    openPlayerRequest = openPlayerRequest,
+                    onOpenPlayerRequestHandled = { openPlayerRequest = false },
+                )
+            }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openPlayerRequest = intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)
+        intent.removeExtra(EXTRA_OPEN_PLAYER)
+    }
+
+    companion object {
+        const val EXTRA_OPEN_PLAYER = "com.tuapp.eleuthera.EXTRA_OPEN_PLAYER"
     }
 }
 
@@ -105,9 +127,17 @@ private fun AppRoot(
     playerVm: PlayerViewModel = hiltViewModel(),
     playlistsVm: PlaylistsViewModel = hiltViewModel(),
     themeVm: ThemeViewModel = hiltViewModel(),
+    openPlayerRequest: Boolean,
+    onOpenPlayerRequestHandled: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(Section.SEARCH) }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(openPlayerRequest) {
+        if (openPlayerRequest) {
+            showPlayer = true
+            onOpenPlayerRequestHandled()
+        }
+    }
     // Canción para la que se está eligiendo playlist (null = diálogo cerrado).
     var trackForPlaylist by remember { mutableStateOf<Track?>(null) }
 
