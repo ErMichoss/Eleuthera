@@ -1,6 +1,7 @@
 package com.tuapp.eleuthera
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -28,7 +30,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -44,7 +45,6 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.library.LibraryScreen
 import com.tuapp.eleuthera.ui.common.LocalNowPlaying
 import com.tuapp.eleuthera.ui.library.TrackActions
@@ -72,8 +72,12 @@ private enum class Section(val label: String, val icon: ImageVector) {
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private var openPlayerRequest by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openPlayerRequest = intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)
+        intent.removeExtra(EXTRA_OPEN_PLAYER)
         enableEdgeToEdge()
         setContent {
             // Android 13+: sin este permiso no se ve el progreso de las descargas.
@@ -99,8 +103,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            AppTheme(theme) { AppRoot(themeVm = themeVm) }
+            AppTheme(theme) {
+                AppRoot(
+                    themeVm = themeVm,
+                    openPlayerRequest = openPlayerRequest,
+                    onOpenPlayerRequestHandled = { openPlayerRequest = false },
+                )
+            }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openPlayerRequest = intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)
+        intent.removeExtra(EXTRA_OPEN_PLAYER)
+    }
+
+    companion object {
+        const val EXTRA_OPEN_PLAYER = "com.tuapp.eleuthera.EXTRA_OPEN_PLAYER"
     }
 }
 
@@ -109,12 +130,19 @@ private fun AppRoot(
     playerVm: PlayerViewModel = hiltViewModel(),
     playlistsVm: PlaylistsViewModel = hiltViewModel(),
     themeVm: ThemeViewModel = hiltViewModel(),
+    openPlayerRequest: Boolean,
+    onOpenPlayerRequestHandled: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(Section.SEARCH) }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
     // Canción o lista para la que se está eligiendo playlist (null = diálogo cerrado).
     var playlistTarget by remember { mutableStateOf<PlaylistTarget?>(null) }
-
+    LaunchedEffect(openPlayerRequest) {
+        if (openPlayerRequest) {
+            showPlayer = true
+            onOpenPlayerRequestHandled()
+        }
+    }
     val trackActions = remember(playerVm) {
         TrackActions(
             onPlay = playerVm::play,

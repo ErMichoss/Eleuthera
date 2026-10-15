@@ -3,25 +3,33 @@ package com.tuapp.eleuthera.playback
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.tuapp.eleuthera.data.settings.LoadedSkin
+import com.tuapp.eleuthera.data.settings.ProgressSkinRepository
 import com.tuapp.eleuthera.data.settings.ThemeRepository
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.widget.MusicWidgetProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.CancellationException
+import java.util.concurrent.ExecutionException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 enum class RepeatMode { OFF, ALL, ONE }
@@ -55,6 +63,7 @@ data class PlayerState(
     val shuffle: Boolean = false,
     val repeat: RepeatMode = RepeatMode.OFF,
     val durationMs: Long = 0,
+    val positionMs: Long = 0,
 ) {
     val hasMedia get() = mediaId != null
 }
@@ -76,6 +85,7 @@ data class PlayerState(
 class PlayerController @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val themeRepository: ThemeRepository,
+    private val progressSkinRepository: ProgressSkinRepository,
 ) {
 
     private val _state = MutableStateFlow(PlayerState())
@@ -87,6 +97,9 @@ class PlayerController @Inject constructor(
     private var context: List<Track> = emptyList()
     private var shuffle = false
     private var repeat = RepeatMode.OFF
+
+    private var activeSkin: LoadedSkin? = null
+    private var tickerJob: Job? = null
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -100,38 +113,96 @@ class PlayerController @Inject constructor(
         }
     }
 
+    private data class PendingAction(
+        val action: () -> Unit,
+        val onUnavailable: () -> Unit,
+        var timeoutJob: Job? = null,
+    )
+
     /** Acciones pedidas antes de conectar con el reproductor (p. ej. desde el widget). */
-    private val pendingActions = mutableListOf<() -> Unit>()
+    private val pendingActions = mutableListOf<PendingAction>()
+    private var connectionFailure: Throwable? = null
 
     init {
         val token = SessionToken(ctx, ComponentName(ctx, PlaybackService::class.java))
         val future = MediaController.Builder(ctx, token).buildAsync()
         future.addListener({
-            runCatching { future.get() }.onSuccess {
-                controller = it
-                it.shuffleModeEnabled = false   // el aleatorio lo hace esta clase
-                it.addListener(listener)
-                sync(it)
-                pendingActions.forEach { action -> action() }
-                pendingActions.clear()
+            val connected = try {
+                future.get()
+            } catch (failure: ExecutionException) {
+                failPendingActions(failure)
+                return@addListener
+            } catch (failure: CancellationException) {
+                failPendingActions(failure)
+                return@addListener
+            } catch (failure: InterruptedException) {
+                Thread.currentThread().interrupt()
+                failPendingActions(failure)
+                return@addListener
+            }
+
+            controller = connected
+            connected.shuffleModeEnabled = false   // el aleatorio lo hace esta clase
+            connected.addListener(listener)
+            sync(connected)
+            val actions = pendingActions.toList()
+            pendingActions.clear()
+            actions.forEach { pending ->
+                pending.timeoutJob?.cancel()
+                pending.action()
             }
         }, ContextCompat.getMainExecutor(ctx))
 
         // Widget: se redibuja solo cuando cambia algo que muestra (no en cada evento del
         // reproductor, que llegan varias veces por segundo) o cuando cambia el tema.
         CoroutineScope(Dispatchers.Main).launch {
-            combine(_state, themeRepository.config) { s, theme -> s to theme }
-                .distinctUntilChangedBy { (s, theme) ->
-                    listOf(s.mediaId, s.title, s.artist, s.isPlaying, s.shuffle, s.repeat,
-                        s.artwork?.size, theme)
+            combine(_state, themeRepository.config, progressSkinRepository.active) { s, theme, skin ->
+                Triple(s, theme, skin)
+            }
+                .distinctUntilChangedBy { (s, theme, skin) ->
+                    listOf(
+                        s.mediaId, s.title, s.artist, s.isPlaying, s.shuffle, s.repeat,
+                        s.artwork?.size, s.positionMs / 1000, s.durationMs, theme, skin
+                    )
                 }
-                .collect { (s, theme) -> MusicWidgetProvider.updateWidget(ctx, s, theme) }
+                .collect { (s, theme, skin) ->
+                    activeSkin = skin
+                    MusicWidgetProvider.updateWidget(ctx, s, theme, skin)
+                }
         }
     }
 
-    /** Ejecuta [action] en cuanto el reproductor esté conectado (al momento si ya lo está). */
-    fun runWhenReady(action: () -> Unit) {
-        if (controller != null) action() else pendingActions += action
+    /** Ejecuta [action] al conectar; descarta la petición y llama [onUnavailable] tras 8 s. */
+    fun runWhenReady(action: () -> Unit, onUnavailable: () -> Unit = {}) {
+        if (controller != null) {
+            action()
+            return
+        }
+        if (connectionFailure != null) {
+            onUnavailable()
+            return
+        }
+
+        val pending = PendingAction(action, onUnavailable)
+        pendingActions += pending
+        pending.timeoutJob = CoroutineScope(Dispatchers.Main).launch {
+            delay(8_000)
+            if (pendingActions.remove(pending)) {
+                Log.w(TAG, "Discarding a widget action because the player did not connect in time")
+                pending.onUnavailable()
+            }
+        }
+    }
+
+    private fun failPendingActions(failure: Exception) {
+        connectionFailure = failure
+        Log.e(TAG, "Could not connect to the playback service", failure)
+        val actions = pendingActions.toList()
+        pendingActions.clear()
+        actions.forEach { pending ->
+            pending.timeoutJob?.cancel()
+            pending.onUnavailable()
+        }
     }
 
     private fun sync(p: Player) {
@@ -162,7 +233,24 @@ class PlayerController @Inject constructor(
             shuffle = shuffle,
             repeat = repeat,
             durationMs = p.duration.coerceAtLeast(0),
+            positionMs = p.currentPosition.coerceAtLeast(0),
         )
+        updateTicker(p.isPlaying)
+    }
+
+    private fun updateTicker(isPlaying: Boolean) {
+        tickerJob?.cancel()
+        if (isPlaying) {
+            tickerJob = CoroutineScope(Dispatchers.Main).launch {
+                while (isActive) {
+                    delay(1000)
+                    controller?.let { c ->
+                        val pos = c.currentPosition.coerceAtLeast(0)
+                        _state.value = _state.value.copy(positionMs = pos)
+                    }
+                }
+            }
+        }
     }
 
     val positionMs: Long get() = controller?.currentPosition ?: 0L
@@ -325,7 +413,10 @@ class PlayerController @Inject constructor(
         c.removeMediaItems(start, end)
     }
 
-    private companion object { const val MAX_HISTORY = 50 }
+    private companion object {
+        const val MAX_HISTORY = 50
+        const val TAG = "PlayerController"
+    }
 }
 
 private const val EXTRA_USER_QUEUED = "eleuthera.user_queued"
