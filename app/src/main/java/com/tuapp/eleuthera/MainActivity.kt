@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -44,7 +45,6 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.library.LibraryScreen
 import com.tuapp.eleuthera.ui.common.LocalNowPlaying
 import com.tuapp.eleuthera.ui.library.TrackActions
@@ -143,9 +143,6 @@ private fun AppRoot(
             onOpenPlayerRequestHandled()
         }
     }
-    // Canción para la que se está eligiendo playlist (null = diálogo cerrado).
-    var trackForPlaylist by remember { mutableStateOf<Track?>(null) }
-
     val trackActions = remember(playerVm) {
         TrackActions(
             onPlay = playerVm::play,

@@ -52,9 +52,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
-        }
+        if (appWidgetIds.isNotEmpty()) updateCurrentWidgets(context)
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -64,7 +62,14 @@ class MusicWidgetProvider : AppWidgetProvider() {
         newOptions: Bundle
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
-        updateAppWidget(context, appWidgetManager, appWidgetId)
+        updateCurrentWidgets(context)
+    }
+
+    private fun updateCurrentWidgets(context: Context) {
+        val themeConfig = runCatching {
+            runBlocking { ThemeRepository(context).config.first() }
+        }.getOrDefault(ThemeConfig())
+        updateWidget(context, player.state.value, themeConfig)
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -211,44 +216,6 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 setupPendingIntents(context, views)
                 appWidgetManager.updateAppWidget(id, views)
             }
-        }
-
-        fun updateAppWidget(
-            context: Context,
-            appWidgetManager: AppWidgetManager,
-            appWidgetId: Int
-        ) {
-            val views = RemoteViews(context.packageName, R.layout.widget_music_player)
-            val themeConfig = runCatching {
-                runBlocking { ThemeRepository(context).config.first() }
-            }.getOrDefault(ThemeConfig())
-
-            val activeSkin = runCatching {
-                runBlocking { ProgressSkinRepository(context).active.first() }
-            }.getOrNull()
-
-            val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
-            val widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250).coerceAtLeast(120)
-            val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90).coerceAtLeast(60)
-            configureWidgetSize(views, widthDp)
-
-            val bgBitmap = createRoundedBackground(
-                context,
-                themeConfig.background,
-                themeConfig.cornerRadiusDp,
-                widthDp,
-                heightDp
-            )
-            views.setImageViewBitmap(R.id.widget_bg, bgBitmap)
-            views.setTextColor(R.id.widget_title, themeConfig.primary)
-
-            val progressBitmap = createProgressBarBitmap(context, 0, 0, themeConfig, activeSkin, widthDp)
-            views.setImageViewBitmap(R.id.widget_progress_bar, progressBitmap)
-            views.setTextViewText(R.id.widget_time_current, "0:00")
-            views.setTextViewText(R.id.widget_time_total, "0:00")
-
-            setupPendingIntents(context, views)
-            appWidgetManager.updateAppWidget(appWidgetId, views)
         }
 
         private fun formatTime(ms: Long): String {
