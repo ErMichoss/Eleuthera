@@ -31,10 +31,9 @@ class MusicBrainzActivity : ComponentActivity() {
 
     private fun handleOAuthRedirect(intent: Intent?) {
         val uri = intent?.data
-        if (uri != null && uri.scheme == "eleuthera" && uri.host == "oauth") {
+        if (uri != null && uri.scheme == "com.tuapp.eleuthera" && uri.host == "oauth") {
             val authCode = uri.getQueryParameter("code")
             if (!authCode.isNullOrBlank()) {
-                // Le pasamos el código al ViewModel para que obtenga el Access Token
                 viewModel.exchangeCodeForToken(authCode)
             }
         }

@@ -44,6 +44,14 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+
+                    Button(
+                        onClick = { viewModel.startOAuthLogin(context) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Iniciar Sesión en MusicBrainz")
+                    }
+
                     // Selector de tipo (Recording o Album)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(

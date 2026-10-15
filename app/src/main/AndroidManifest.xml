@@ -54,7 +54,7 @@
 
                 <!-- Redirección registrada en MusicBrainz -->
                 <data
-                    android:scheme="eleuthera"
+                    android:scheme="com.tuapp.eleuthera"
                     android:host="oauth" />
             </intent-filter>
         </activity>

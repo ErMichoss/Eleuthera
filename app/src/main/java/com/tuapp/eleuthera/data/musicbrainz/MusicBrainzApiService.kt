@@ -17,7 +17,7 @@ interface MusicBrainzApiService {
         @Field("client_secret") clientSecret: String,
         @Field("grant_type") grantType: String = "authorization_code",
         @Field("code") code: String,
-        @Field("redirect_uri") redirectUri: String = "eleuthera://oauth"
+        @Field("redirect_uri") redirectUri: String = "com.tuapp.eleuthera://oauth" // Obligatorio y exactamente igual
     ): MusicBrainzTokenResponse
 
     @Headers("User-Agent: MusicBrainzExplorerAndroid/1.0.0 (contacto@ejemplo.com)")
