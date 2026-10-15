@@ -69,7 +69,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuapp.eleuthera.domain.model.Playlist
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.common.PlaylistCover
-import com.tuapp.eleuthera.ui.common.TrackArt
+import com.tuapp.eleuthera.ui.common.QueueMenuButton
+import com.tuapp.eleuthera.ui.common.TrackRowArt
+import com.tuapp.eleuthera.ui.common.trackRowColors
 import com.tuapp.eleuthera.ui.library.TrackActions
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
@@ -89,13 +91,18 @@ fun PlaylistsScreen(
     BackHandler(enabled = open != null) { vm.close() }
 
     if (open != null) PlaylistDetail(open, actions, vm, modifier)
-    else PlaylistGrid(playlists, vm, modifier)
+    else PlaylistGrid(playlists, actions, vm, modifier)
 }
 
 // ---------- Cuadrícula de playlists ----------
 
 @Composable
-private fun PlaylistGrid(playlists: List<Playlist>, vm: PlaylistsViewModel, modifier: Modifier) {
+private fun PlaylistGrid(
+    playlists: List<Playlist>,
+    actions: TrackActions,
+    vm: PlaylistsViewModel,
+    modifier: Modifier,
+) {
     var creating by remember { mutableStateOf(false) }
 
     Column(modifier.fillMaxSize()) {
@@ -138,19 +145,31 @@ private fun PlaylistGrid(playlists: List<Playlist>, vm: PlaylistsViewModel, modi
                             customCover = playlist.customCover,
                         )
                         Spacer(Modifier.height(8.dp))
-                        Text(
-                            playlist.name,
-                            modifier = Modifier.padding(horizontal = 10.dp),
-                            style = MaterialTheme.typography.titleSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            "${playlist.trackCount} canciones",
-                            modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    playlist.name,
+                                    modifier = Modifier.padding(horizontal = 10.dp),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    "${playlist.trackCount} canciones",
+                                    modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (playlist.trackCount > 0) {
+                                QueueMenuButton(
+                                    loadTracks = { vm.tracksOf(playlist.id) },
+                                    onPlayNext = actions.onPlayNextAll,
+                                    onAddToQueue = actions.onAddAllToQueue,
+                                    icon = Icons.Default.MoreVert,
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -221,6 +240,13 @@ private fun PlaylistDetail(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                     Spacer(Modifier.weight(1f))
+                    if (local.isNotEmpty()) {
+                        QueueMenuButton(
+                            loadTracks = { local },
+                            onPlayNext = actions.onPlayNextAll,
+                            onAddToQueue = actions.onAddAllToQueue,
+                        )
+                    }
                     IconButton(onClick = { renaming = true }) {
                         Icon(Icons.Default.Edit, contentDescription = "Renombrar playlist")
                     }
@@ -321,13 +347,12 @@ private fun PlaylistDetail(
             ReorderableItem(reorderState, key = track.id) { dragging ->
                 ListItem(
                     modifier = Modifier.clickable { actions.onPlay(local, index) },
-                    colors = ListItemDefaults.colors(
-                        containerColor = if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh
+                    colors = trackRowColors(
+                        track,
+                        base = if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh
                         else MaterialTheme.colorScheme.surface,
                     ),
-                    leadingContent = {
-                        TrackArt(track.uri, Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)))
-                    },
+                    leadingContent = { TrackRowArt(track) },
                     headlineContent = {
                         Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },

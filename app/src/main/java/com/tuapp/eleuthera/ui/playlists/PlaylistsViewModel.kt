@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -36,6 +37,9 @@ class PlaylistsViewModel @Inject constructor(private val repo: PlaylistRepositor
     init {
         viewModelScope.launch { runCatching { repo.importDownloadedFoldersOnce() } }
     }
+
+    /** Canciones de una playlist en su orden, para mandarla a la cola sin abrirla. */
+    suspend fun tracksOf(playlistId: Long): List<Track> = repo.tracks(playlistId).first()
 
     fun open(playlistId: Long) { _openId.value = playlistId }
     fun close() { _openId.value = null }

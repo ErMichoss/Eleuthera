@@ -28,6 +28,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.library.LibraryScreen
+import com.tuapp.eleuthera.ui.common.LocalNowPlaying
 import com.tuapp.eleuthera.ui.library.TrackActions
 import com.tuapp.eleuthera.ui.player.MiniPlayer
 import com.tuapp.eleuthera.ui.player.NowPlayingScreen
@@ -118,55 +120,62 @@ private fun AppRoot(
             onPlayNext = playerVm::playNext,
             onAddToQueue = playerVm::addToQueue,
             onAddToPlaylist = { trackForPlaylist = it },
+            onPlayNextAll = playerVm::playNextAll,
+            onAddAllToQueue = playerVm::addAllToQueue,
         )
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            bottomBar = {
-                Column {
-                    MiniPlayer(playerVm, onExpand = { showPlayer = true })
-                    NavigationBar {
-                        Section.entries.forEach { item ->
-                            NavigationBarItem(
-                                selected = item == section,
-                                onClick = { section = item },
-                                icon = { Icon(item.icon, contentDescription = null) },
-                                label = { Text(item.label) },
-                            )
+    // Qué canción suena: lo leen las listas para resaltarla.
+    val nowPlaying by playerVm.nowPlaying.collectAsStateWithLifecycle()
+
+    CompositionLocalProvider(LocalNowPlaying provides nowPlaying) {
+        Box(Modifier.fillMaxSize()) {
+            Scaffold(
+                bottomBar = {
+                    Column {
+                        MiniPlayer(playerVm, onExpand = { showPlayer = true })
+                        NavigationBar {
+                            Section.entries.forEach { item ->
+                                NavigationBarItem(
+                                    selected = item == section,
+                                    onClick = { section = item },
+                                    icon = { Icon(item.icon, contentDescription = null) },
+                                    label = { Text(item.label) },
+                                )
+                            }
                         }
                     }
+                },
+            ) { padding ->
+                val modifier = Modifier.fillMaxSize().padding(padding)
+                when (section) {
+                    Section.SEARCH -> SearchScreen(modifier)
+                    Section.LIBRARY -> LibraryScreen(modifier, trackActions)
+                    Section.PLAYLISTS -> PlaylistsScreen(modifier, trackActions, playlistsVm)
+                    Section.SETTINGS -> SettingsScreen(modifier, themeVm)
                 }
-            },
-        ) { padding ->
-            val modifier = Modifier.fillMaxSize().padding(padding)
-            when (section) {
-                Section.SEARCH -> SearchScreen(modifier)
-                Section.LIBRARY -> LibraryScreen(modifier, trackActions)
-                Section.PLAYLISTS -> PlaylistsScreen(modifier, trackActions, playlistsVm)
-                Section.SETTINGS -> SettingsScreen(modifier, themeVm)
             }
-        }
 
-        // Aviso de versión nueva publicada en GitHub.
-        UpdatePrompt()
+            // Aviso de versión nueva publicada en GitHub.
+            UpdatePrompt()
 
-        trackForPlaylist?.let { track ->
-            AddToPlaylistDialog(track, playlistsVm, onDismiss = { trackForPlaylist = null })
-        }
+            trackForPlaylist?.let { track ->
+                AddToPlaylistDialog(track, playlistsVm, onDismiss = { trackForPlaylist = null })
+            }
 
-        // Reproductor a pantalla completa, por encima de todo.
-        AnimatedVisibility(
-            visible = showPlayer,
-            enter = slideInVertically { it },
-            exit = slideOutVertically { it },
-        ) {
-            BackHandler { showPlayer = false }
-            NowPlayingScreen(
-                vm = playerVm,
-                onClose = { showPlayer = false },
-                modifier = Modifier.safeDrawingPadding(),
-            )
+            // Reproductor a pantalla completa, por encima de todo.
+            AnimatedVisibility(
+                visible = showPlayer,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it },
+            ) {
+                BackHandler { showPlayer = false }
+                NowPlayingScreen(
+                    vm = playerVm,
+                    onClose = { showPlayer = false },
+                    modifier = Modifier.safeDrawingPadding(),
+                )
+            }
         }
     }
 }

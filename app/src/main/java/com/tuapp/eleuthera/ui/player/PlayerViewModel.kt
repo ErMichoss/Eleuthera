@@ -7,11 +7,14 @@ import com.tuapp.eleuthera.data.settings.ProgressSkinRepository
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.playback.PlayerController
 import com.tuapp.eleuthera.playback.PlayerState
+import com.tuapp.eleuthera.ui.common.NowPlaying
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 
@@ -27,6 +30,12 @@ class PlayerViewModel @Inject constructor(
 
     val state: StateFlow<PlayerState> = player.state
 
+    /** Solo qué suena y si está en pausa: las listas no se recomponen por otros cambios. */
+    val nowPlaying: StateFlow<NowPlaying> = player.state
+        .map { NowPlaying(it.mediaId, it.isPlaying) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, NowPlaying())
+
     /** Posición actual; solo se consulta mientras alguna pantalla la esté mostrando. */
     val positionMs: StateFlow<Long> = flow {
         while (true) {
@@ -39,6 +48,8 @@ class PlayerViewModel @Inject constructor(
     fun playShuffled(tracks: List<Track>) = player.playShuffled(tracks)
     fun playNext(track: Track) = player.playNext(track)
     fun addToQueue(track: Track) = player.addToQueue(track)
+    fun playNextAll(tracks: List<Track>) = player.playNext(tracks)
+    fun addAllToQueue(tracks: List<Track>) = player.addToQueue(tracks)
 
     fun toggle() = player.toggle()
     fun next() = player.next()

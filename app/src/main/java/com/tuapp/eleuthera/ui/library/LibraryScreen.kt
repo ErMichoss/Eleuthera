@@ -61,7 +61,9 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuapp.eleuthera.domain.model.Track
-import com.tuapp.eleuthera.ui.common.TrackArt
+import com.tuapp.eleuthera.ui.common.QueueMenuButton
+import com.tuapp.eleuthera.ui.common.TrackRowArt
+import com.tuapp.eleuthera.ui.common.trackRowColors
 import kotlinx.coroutines.launch
 
 private val audioPermission =
@@ -77,6 +79,10 @@ data class TrackActions(
     val onPlayNext: (Track) -> Unit = {},
     val onAddToQueue: (Track) -> Unit = {},
     val onAddToPlaylist: (Track) -> Unit = {},
+    /** Varias canciones (una playlist, un álbum...) justo después de la actual. */
+    val onPlayNextAll: (List<Track>) -> Unit = {},
+    /** Varias canciones al final de la cola del usuario. */
+    val onAddAllToQueue: (List<Track>) -> Unit = {},
 )
 
 @Composable
@@ -150,6 +156,13 @@ fun LibraryScreen(
                 },
                 headlineContent = { Text(open.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 supportingContent = { Text("${open.tracks.size} canciones") },
+                trailingContent = {
+                    QueueMenuButton(
+                        loadTracks = { open.tracks },
+                        onPlayNext = actions.onPlayNextAll,
+                        onAddToQueue = actions.onAddAllToQueue,
+                    )
+                },
             )
             TrackList(open.tracks, actions, onDelete)
             return@Column
@@ -209,9 +222,8 @@ private fun TrackList(tracks: List<Track>, actions: TrackActions, onDelete: (Tra
             val track = tracks[index]
             ListItem(
                 modifier = Modifier.clickable { actions.onPlay(tracks, index) },
-                leadingContent = {
-                    TrackArt(track.uri, Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)))
-                },
+                colors = trackRowColors(track),
+                leadingContent = { TrackRowArt(track) },
                 trailingContent = { TrackMenu(track, actions, onDelete) },
                 headlineContent = {
                     Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
