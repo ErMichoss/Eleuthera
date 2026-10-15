@@ -11,8 +11,8 @@ import android.os.Build
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
 import android.provider.MediaStore
-import com.tuapp.eleuthera.data.settings.LibrarySettings
 import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.Track
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -24,17 +24,21 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
-/** Acceso a la música del dispositivo a través de MediaStore. */
+/**
+ * Biblioteca completa: Música/Eleuthera (lo descargado por la app) a través de MediaStore,
+ * más las carpetas añadidas en Ajustes, que lee [FolderLibrary] recorriéndolas directamente.
+ */
 @Singleton
 class MediaLibrary @Inject constructor(
     @ApplicationContext private val ctx: Context,
-    private val librarySettings: LibrarySettings,
+    private val folderLibrary: FolderLibrary,
 ) {
 
     private val collection: Uri =
@@ -81,6 +85,14 @@ class MediaLibrary @Inject constructor(
      * instalación, p. ej. tras reinstalarla).
      */
     suspend fun delete(track: Track): IntentSender? = withContext(Dispatchers.IO) {
+        if (FolderLibrary.isFolderTrack(track.id)) {
+            // Archivo de una carpeta añadida: se borra con el permiso de la carpeta.
+            if (!DocumentsContract.deleteDocument(ctx.contentResolver, track.uri)) {
+                error("No se pudo borrar ${track.title}")
+            }
+            folderLibrary.refresh()
+            return@withContext null
+        }
         try {
             ctx.contentResolver.delete(track.uri, null, null)
             null
@@ -102,17 +114,17 @@ class MediaLibrary @Inject constructor(
         )?.use { it.count > 0 } ?: false
     }
 
-    /** Lista la música de la carpeta de la app. MediaStore ya lee las etiquetas ID3. */
-    suspend fun scan(includeExtraFolders: Boolean = true): List<Track> = withContext(Dispatchers.IO) {
-        // Música/Eleuthera siempre; además, las carpetas añadidas en Ajustes.
-        val roots = buildList {
-            add("$BASE_PATH/")
-            if (includeExtraFolders) addAll(librarySettings.folders.first())
-        }
-        val selection = roots.joinToString(" OR ", prefix = "(", postfix = ")") {
-            "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ?"
-        } + " AND ${MediaStore.Audio.Media.IS_MUSIC} != 0"
-        val args = roots.map { "$it%" }.toTypedArray()
+    /** Lista la biblioteca; con [includeExtraFolders] = false, solo Música/Eleuthera. */
+    suspend fun scan(includeExtraFolders: Boolean = true): List<Track> {
+        val own = scanAppFolder()
+        if (!includeExtraFolders) return own
+        return merged(own, folderLibrary.tracks.filterNotNull().first())
+    }
+
+    /** Música/Eleuthera vía MediaStore, que ya lee las etiquetas ID3. */
+    private suspend fun scanAppFolder(): List<Track> = withContext(Dispatchers.IO) {
+        val selection = "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ?"
+        val args = arrayOf("$BASE_PATH/%")
 
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
@@ -154,10 +166,18 @@ class MediaLibrary @Inject constructor(
 
     /** Emite la biblioteca y vuelve a emitirla cada vez que cambia (p. ej. termina una descarga). */
     fun observe(): Flow<List<Track>> =
-        combine(changes(), librarySettings.folders) { _, _ -> }
-            .conflate()
-            .map { scan() }
-            .flowOn(Dispatchers.IO)
+        combine(
+            changes().conflate().map { scanAppFolder() },
+            folderLibrary.tracks.filterNotNull(),
+            { own, folders -> merged(own, folders) },
+        ).flowOn(Dispatchers.IO)
+
+    /** Vuelve a mirar las carpetas añadidas (al abrir la biblioteca, p. ej.). */
+    fun refreshFolders() = folderLibrary.refresh()
+
+    private fun merged(own: List<Track>, folders: List<Track>): List<Track> =
+        if (folders.isEmpty()) own
+        else (own + folders).sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
 
     /** Avisa cada vez que cambia algo en MediaStore. */
     private fun changes(): Flow<Unit> = callbackFlow {

@@ -43,8 +43,12 @@ class LibraryViewModel @Inject constructor(private val library: MediaLibrary) : 
     private var all: List<Track> = emptyList()
     private var job: Job? = null
 
-    /** Llamar cuando el permiso de lectura esté concedido. Es idempotente. */
+    /**
+     * Llamar cuando el permiso de lectura esté concedido. Cada llamada (al entrar en la
+     * biblioteca) vuelve a mirar las carpetas añadidas; la suscripción solo se crea una vez.
+     */
     fun start() {
+        library.refreshFolders()
         if (job != null) return
         job = viewModelScope.launch {
             library.observe().collect { tracks ->
@@ -65,7 +69,7 @@ class LibraryViewModel @Inject constructor(private val library: MediaLibrary) : 
 
     /**
      * Borra la canción del dispositivo. Devuelve un IntentSender si Android pide confirmación
-     * al usuario; la lista se actualiza sola cuando MediaStore notifica el cambio.
+     * al usuario; la lista se actualiza sola cuando el archivo desaparece.
      */
     suspend fun delete(track: Track): IntentSender? =
         runCatching { library.delete(track) }.getOrNull()
@@ -75,8 +79,8 @@ class LibraryViewModel @Inject constructor(private val library: MediaLibrary) : 
         val q = old.query.trim()
         val tracks = if (q.isEmpty()) all else all.filter {
             it.title.contains(q, ignoreCase = true) ||
-                it.artist.contains(q, ignoreCase = true) ||
-                it.album.contains(q, ignoreCase = true)
+                    it.artist.contains(q, ignoreCase = true) ||
+                    it.album.contains(q, ignoreCase = true)
         }
         val artists = tracks.grouped({ it.artist }) { "${it.size} canciones" }
         val albums = tracks.grouped({ it.album }) { it.first().artist }

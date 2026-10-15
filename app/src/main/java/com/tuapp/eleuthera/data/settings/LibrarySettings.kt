@@ -1,6 +1,7 @@
 package com.tuapp.eleuthera.data.settings
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.datastore.preferences.core.edit
@@ -14,30 +15,76 @@ import kotlinx.coroutines.flow.map
 
 private val Context.libraryStore by preferencesDataStore(name = "library")
 
+/** Carpeta añadida en Ajustes: la URI del selector (con permiso guardado) y su nombre visible. */
+data class LibraryFolder(val treeUri: Uri, val label: String)
+
 /**
  * Carpetas extra que la biblioteca incluye además de Música/Eleuthera.
- * Se guardan como rutas relativas de MediaStore, p. ej. "Music/Rock/" o "Download/".
+ * Se recorren nosotros mismos (no MediaStore), así que entra todo archivo con extensión
+ * de audio aunque Android lo tenga clasificado como vídeo o no lo haya indexado.
  */
 @Singleton
 class LibrarySettings @Inject constructor(@ApplicationContext private val ctx: Context) {
 
-    private val foldersKey = stringSetPreferencesKey("extra_folders")
+    private val treesKey = stringSetPreferencesKey("folder_trees")
 
-    val folders: Flow<Set<String>> = ctx.libraryStore.data.map { it[foldersKey].orEmpty() }
+    /** Formato antiguo (solo la ruta, sin permiso). Se muestran para que el usuario las vuelva a añadir. */
+    private val legacyKey = stringSetPreferencesKey("extra_folders")
 
-    /**
-     * Añade la carpeta elegida con el selector del sistema. Devuelve su ruta relativa,
-     * o null si está en una tarjeta SD u otro volumen (MediaStore no la indexa igual).
-     */
-    suspend fun add(treeUri: Uri): String? {
-        val docId = DocumentsContract.getTreeDocumentId(treeUri)   // "primary:Music/Rock"
-        if (!docId.startsWith("primary:")) return null
-        val relative = docId.removePrefix("primary:").trim('/').let { if (it.isEmpty()) "" else "$it/" }
-        ctx.libraryStore.edit { it[foldersKey] = it[foldersKey].orEmpty() + relative }
-        return relative
+    val folders: Flow<List<LibraryFolder>> = ctx.libraryStore.data.map { prefs ->
+        prefs[treesKey].orEmpty()
+            .map { Uri.parse(it) }
+            .map { LibraryFolder(it, labelOf(DocumentsContract.getTreeDocumentId(it))) }
+            .sortedBy { it.label.lowercase() }
     }
 
-    suspend fun remove(relativePath: String) {
-        ctx.libraryStore.edit { it[foldersKey] = it[foldersKey].orEmpty() - relativePath }
+    val legacyFolders: Flow<List<String>> =
+        ctx.libraryStore.data.map { it[legacyKey].orEmpty().sorted() }
+
+    /** Guarda la carpeta elegida y su permiso para siempre. false si Android no lo concede. */
+    suspend fun add(treeUri: Uri): Boolean {
+        val resolver = ctx.contentResolver
+        val granted = runCatching {
+            resolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }.recoverCatching {
+            // Algunos proveedores solo dan lectura: sin escritura no se podrá borrar desde la app.
+            resolver.takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }.isSuccess
+        if (!granted) return false
+        ctx.libraryStore.edit { it[treesKey] = it[treesKey].orEmpty() + treeUri.toString() }
+        return true
+    }
+
+    suspend fun remove(folder: LibraryFolder) {
+        ctx.libraryStore.edit { it[treesKey] = it[treesKey].orEmpty() - folder.treeUri.toString() }
+        runCatching {
+            ctx.contentResolver.releasePersistableUriPermission(
+                folder.treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
+    }
+
+    suspend fun removeLegacy(relativePath: String) {
+        ctx.libraryStore.edit { it[legacyKey] = it[legacyKey].orEmpty() - relativePath }
+    }
+
+    companion object {
+        /**
+         * Nombre legible de un documento: "primary:Download/Musica" -> "Download/Musica",
+         * "1A2B-3C4D:Musica" -> "SD/Musica", "primary:" -> "Almacenamiento interno".
+         */
+        fun labelOf(documentId: String): String {
+            val volume = documentId.substringBefore(':')
+            val path = documentId.substringAfter(':', "").trim('/')
+            return when {
+                volume == "primary" -> path.ifEmpty { "Almacenamiento interno" }
+                path.isEmpty() -> "SD"
+                else -> "SD/$path"
+            }
+        }
     }
 }

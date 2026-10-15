@@ -3,6 +3,7 @@ package com.tuapp.eleuthera.ui.settings
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.tuapp.eleuthera.data.settings.LibraryFolder
 import com.tuapp.eleuthera.data.settings.LibrarySettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -10,7 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -19,8 +19,11 @@ class LibrarySettingsViewModel @Inject constructor(
     private val settings: LibrarySettings,
 ) : ViewModel() {
 
-    val folders: StateFlow<List<String>> = settings.folders
-        .map { it.sorted() }
+    val folders: StateFlow<List<LibraryFolder>> = settings.folders
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Carpetas añadidas con la versión anterior: hay que volver a añadirlas. */
+    val legacyFolders: StateFlow<List<String>> = settings.legacyFolders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _message = MutableStateFlow<String?>(null)
@@ -28,13 +31,16 @@ class LibrarySettingsViewModel @Inject constructor(
 
     fun add(treeUri: Uri) {
         viewModelScope.launch {
-            _message.value = if (settings.add(treeUri) == null) {
-                "Solo se admiten carpetas del almacenamiento interno, no de la tarjeta SD."
-            } else null
+            _message.value = if (settings.add(treeUri)) null
+            else "Android no ha dado permiso para leer esa carpeta. Prueba con otra."
         }
     }
 
-    fun remove(path: String) {
-        viewModelScope.launch { settings.remove(path) }
+    fun remove(folder: LibraryFolder) {
+        viewModelScope.launch { settings.remove(folder) }
+    }
+
+    fun removeLegacy(path: String) {
+        viewModelScope.launch { settings.removeLegacy(path) }
     }
 }
