@@ -1,3 +1,5 @@
+import java.util.Properties
+
 // app/build.gradle.kts
 plugins {
     id("com.android.application")
@@ -6,6 +8,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
+}
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
 }
 
 android {
@@ -22,6 +30,21 @@ android {
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
         // yt-dlp, Python y FFmpeg son binarios nativos: limita las ABI para no inflar el APK.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+
+        buildConfigField(
+            "String",
+            "MUSICBRAINZ_CLIENT_ID",
+            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_ID") ?: ""}\""
+        )
+        buildConfigField(
+            "String",
+            "MUSICBRAINZ_CLIENT_SECRET",
+            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_SECRET") ?: ""}\""
+        )
+
+        buildFeatures {
+            buildConfig = true
+        }
     }
 
     // Firma de release: solo se usa si existen las variables de entorno (las pone GitHub
