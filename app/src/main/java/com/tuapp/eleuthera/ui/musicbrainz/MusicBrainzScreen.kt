@@ -16,6 +16,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
+import com.tuapp.eleuthera.ui.theme.AppButton
+import com.tuapp.eleuthera.ui.theme.AppCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,8 +38,8 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Panel de búsqueda
-            Card(
+            // Panel de búsqueda usando el componente AppCard
+            AppCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -45,7 +47,7 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
 
-                    Button(
+                    AppButton(
                         onClick = { viewModel.startOAuthLogin(context) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -81,7 +83,7 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Button(
+                    AppButton(
                         onClick = { viewModel.search() },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !viewModel.isLoading
@@ -103,7 +105,7 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                 Text(text = error, color = MaterialTheme.colorScheme.error)
             }
 
-            // Resultados de busqueda
+            // Resultados de búsqueda
             Box(modifier = Modifier.fillMaxSize()) {
                 if (viewModel.searchType == SearchType.RECORDING) {
                     LazyColumn(
@@ -163,24 +165,13 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
         }
     }
 
-    // Modal para ver la caratula en alta resolución
-    /* TODO: Mostrar todos los metadatos relevantes en este modal
-     * Artista
-     * Genero
-     * Compositor
-     * Anio
-     * Letrista
-     * Numero de pista (opcional)
-     * Numero de disco (opcional)
-     * Artista del album? (puede que no se pueda)
-     */
+    // Modal para ver la carátula y detalles en alta resolución
     if (viewModel.isModalOpen) {
         Dialog(onDismissRequest = { viewModel.closeImageModal() }) {
-            Card(
+            AppCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.85f),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    .fillMaxHeight(0.85f)
             ) {
                 Column(
                     modifier = Modifier
@@ -221,13 +212,9 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         viewModel.selectedRecording?.let { rec ->
-                            // 1. Artista
                             val artistName = rec.artistCredit?.joinToString(", ") { it.name ?: "" }.takeIf { !it.isNullOrBlank() } ?: "Desconocido"
-
-                            // 2. Género (Usa tagList tal como lo definiste en tu modelo)
                             val genres = rec.tagList?.joinToString(", ") { it.name ?: "" }.takeIf { !it.isNullOrBlank() } ?: "-"
 
-                            // 3 y 5. Compositor y Letrista (Usa relationList de tu modelo)
                             var composer = "-"
                             var lyricist = "-"
                             rec.relationList?.forEach { rel ->
@@ -236,11 +223,8 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                             }
 
                             val release = rec.releases?.firstOrNull()
-
-                            // 4. Año
                             val year = release?.date?.take(4) ?: "N/A"
 
-                            // 6 y 7. Número de Pista y Disco
                             var trackNum: String? = null
                             var discNum: String? = null
 
@@ -248,7 +232,6 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                                 mediaList.forEachIndexed { index, media ->
                                     discNum = media.position?.toString() ?: (index + 1).toString()
 
-                                    // Búsqueda por título para evitar el error de IDs distintos
                                     val foundTrack = media.track?.find { track ->
                                         track.title.equals(rec.title, ignoreCase = true)
                                     }
@@ -260,7 +243,6 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                                 }
                             }
 
-                            // Pintar filas en el modal
                             item { MetadataRow("Artista:", artistName) }
                             item { MetadataRow("Género:", genres) }
                             item { MetadataRow("Compositor:", composer) }
@@ -290,7 +272,7 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                     }
 
                     // Botón de cierre
-                    Button(
+                    AppButton(
                         onClick = { viewModel.closeImageModal() },
                         modifier = Modifier.align(Alignment.End)
                     ) {
@@ -309,19 +291,12 @@ fun RecordingRowItem(
     artist: String,
     releaseTitle: String,
     coverUrl: String?,
-    hasFailed: Boolean,          // Recibe si falló o no
+    hasFailed: Boolean,
     onImageError: () -> Unit,
     onImageClick: () -> Unit
 ) {
-    val backgroundColor = if (hasFailed) {
-        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
-    } else {
-        CardDefaults.cardColors().containerColor
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+    AppCard(
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier

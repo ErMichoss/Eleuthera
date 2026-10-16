@@ -14,6 +14,7 @@ import com.tuapp.eleuthera.BuildConfig
 import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzService
 import com.tuapp.eleuthera.data.musicbrainz.Recording
 import com.tuapp.eleuthera.data.musicbrainz.Release
+import com.tuapp.eleuthera.domain.model.ThemeConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
