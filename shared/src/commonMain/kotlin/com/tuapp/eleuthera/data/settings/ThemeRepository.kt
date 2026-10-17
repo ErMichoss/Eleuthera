@@ -1,24 +1,21 @@
 package com.tuapp.eleuthera.data.settings
 
-import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.tuapp.eleuthera.domain.model.AppFont
 import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-private val Context.themeStore by preferencesDataStore(name = "theme")
-
-/** Persiste la configuración de tema y la expone como flujo reactivo. */
+/** Persiste la configuración de tema y la expone como flujo reactivo. Común a Android y escritorio. */
 @Singleton
-class ThemeRepository @Inject constructor(@ApplicationContext private val ctx: Context) {
+class ThemeRepository @Inject constructor(stores: PreferenceStores) {
+
+    private val store = stores.get("theme")
 
     private object Keys {
         val primary = intPreferencesKey("primary")
@@ -30,7 +27,7 @@ class ThemeRepository @Inject constructor(@ApplicationContext private val ctx: C
         val style = stringPreferencesKey("style")
     }
 
-    val config: Flow<ThemeConfig> = ctx.themeStore.data.map { p ->
+    val config: Flow<ThemeConfig> = store.data.map { p ->
         val d = ThemeConfig()
         ThemeConfig(
             primary = p[Keys.primary] ?: d.primary,
@@ -46,7 +43,7 @@ class ThemeRepository @Inject constructor(@ApplicationContext private val ctx: C
     }
 
     suspend fun save(c: ThemeConfig) {
-        ctx.themeStore.edit { p ->
+        store.edit { p ->
             p[Keys.primary] = c.primary
             p[Keys.secondary] = c.secondary
             p[Keys.background] = c.background

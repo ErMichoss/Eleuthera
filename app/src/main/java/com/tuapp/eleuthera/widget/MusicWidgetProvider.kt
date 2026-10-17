@@ -24,6 +24,7 @@ import com.tuapp.eleuthera.MainActivity
 import com.tuapp.eleuthera.R
 import com.tuapp.eleuthera.data.settings.LoadedSkin
 import com.tuapp.eleuthera.data.settings.ProgressSkinRepository
+import com.tuapp.eleuthera.data.settings.PreferenceStores
 import com.tuapp.eleuthera.data.settings.ThemeRepository
 import com.tuapp.eleuthera.domain.model.ThemeConfig
 import com.tuapp.eleuthera.domain.model.TrackMode
@@ -67,7 +68,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
     private fun updateCurrentWidgets(context: Context) {
         val themeConfig = runCatching {
-            runBlocking { ThemeRepository(context).config.first() }
+            runBlocking { ThemeRepository(PreferenceStores(context.filesDir)).config.first() }
         }.getOrDefault(ThemeConfig())
         updateWidget(context, player.state.value, themeConfig)
     }
@@ -453,8 +454,8 @@ class MusicWidgetProvider : AppWidgetProvider() {
             val openPlayerIntent = Intent(context, MainActivity::class.java).apply {
                 putExtra(MainActivity.EXTRA_OPEN_PLAYER, true)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
             val openPlayerPendingIntent = PendingIntent.getActivity(
                 context, 6, openPlayerIntent,

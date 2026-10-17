@@ -123,14 +123,10 @@ dependencies {
     implementation("androidx.media3:media3-session:$media3")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-    // Base de datos (playlists)
-    val room = "2.7.2"
-    implementation("androidx.room:room-runtime:$room")
-    implementation("androidx.room:room-ktx:$room")
-    ksp("androidx.room:room-compiler:$room")
+    // Base de datos (playlists): está en :shared (Room multiplataforma).
 
     // Ajustes (tema)
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
 
     // Listas reordenables arrastrando
     implementation("sh.calvin.reorderable:reorderable:2.4.3")
