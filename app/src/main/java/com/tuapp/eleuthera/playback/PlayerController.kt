@@ -32,42 +32,6 @@ import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-enum class RepeatMode { OFF, ALL, ONE }
-
-/**
- * Una canción pendiente de sonar.
- * [index] es su posición real en el reproductor; [key] es única aunque la canción se repita.
- * [userQueued] = la añadió el usuario con "Añadir a la cola" o "Reproducir a continuación".
- */
-data class QueueItem(
-    val key: String,
-    val index: Int,
-    val mediaId: String,
-    val title: String,
-    val artist: String,
-    val userQueued: Boolean,
-)
-
-data class PlayerState(
-    val mediaId: String? = null,
-    val title: String = "",
-    val artist: String = "",
-    /** Carátula incrustada en el MP3 (la miniatura del vídeo), si existe. */
-    val artwork: ByteArray? = null,
-    val currentIndex: Int = 0,
-    /** Cola del usuario: suena antes que el resto, en el orden en que se añadió. */
-    val userQueue: List<QueueItem> = emptyList(),
-    /** Cola por defecto: el resto de la playlist, en orden o barajada. */
-    val upNext: List<QueueItem> = emptyList(),
-    val isPlaying: Boolean = false,
-    val shuffle: Boolean = false,
-    val repeat: RepeatMode = RepeatMode.OFF,
-    val durationMs: Long = 0,
-    val positionMs: Long = 0,
-) {
-    val hasMedia get() = mediaId != null
-}
-
 /**
  * Fachada del reproductor para la interfaz. Habla con [PlaybackService] a través de un
  * MediaController; la UI nunca toca ExoPlayer. Todos los métodos se llaman desde el hilo principal.
@@ -86,10 +50,10 @@ class PlayerController @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val themeRepository: ThemeRepository,
     private val progressSkinRepository: ProgressSkinRepository,
-) {
+) : MusicPlayer {
 
     private val _state = MutableStateFlow(PlayerState())
-    val state: StateFlow<PlayerState> = _state.asStateFlow()
+    override val state: StateFlow<PlayerState> = _state.asStateFlow()
 
     private var controller: MediaController? = null
 
@@ -253,7 +217,7 @@ class PlayerController @Inject constructor(
         }
     }
 
-    val positionMs: Long get() = controller?.currentPosition ?: 0L
+    override val positionMs: Long get() = controller?.currentPosition ?: 0L
 
     // ---- Reproducción ----
 
@@ -261,7 +225,7 @@ class PlayerController @Inject constructor(
      * Empieza a sonar [tracks][startIndex]. La cola por defecto pasa a ser el resto de esa
      * lista; la cola del usuario que hubiera pendiente se conserva y suena primero.
      */
-    fun play(tracks: List<Track>, startIndex: Int = 0) {
+    override fun play(tracks: List<Track>, startIndex: Int) {
         val c = controller ?: return
         if (tracks.isEmpty()) return
         val start = startIndex.coerceIn(tracks.indices)
@@ -280,19 +244,19 @@ class PlayerController @Inject constructor(
     }
 
     /** Botón "Aleatorio" de una playlist: activa el aleatorio y empieza por una canción al azar. */
-    fun playShuffled(tracks: List<Track>) {
+    override fun playShuffled(tracks: List<Track>) {
         if (tracks.isEmpty()) return
         shuffle = true
         play(tracks, tracks.indices.random())
     }
 
-    fun toggle() { controller?.run { if (isPlaying) pause() else play() } }
-    fun next() { controller?.seekToNextMediaItem() }
-    fun previous() { controller?.seekToPrevious() }   // <3 s: canción anterior; si no, reinicia
-    fun seekTo(ms: Long) { controller?.seekTo(ms) }
+    override fun toggle() { controller?.run { if (isPlaying) pause() else play() } }
+    override fun next() { controller?.seekToNextMediaItem() }
+    override fun previous() { controller?.seekToPrevious() }   // <3 s: canción anterior; si no, reinicia
+    override fun seekTo(ms: Long) { controller?.seekTo(ms) }
 
     /** Al cambiar el aleatorio se regenera la cola por defecto; la del usuario no se toca. */
-    fun toggleShuffle() {
+    override fun toggleShuffle() {
         shuffle = !shuffle
         val c = controller ?: return
         if (context.isNotEmpty() && c.mediaItemCount > 0) {
@@ -311,7 +275,7 @@ class PlayerController @Inject constructor(
     }
 
     /** Desactivado → repetir playlist → repetir canción → desactivado. */
-    fun cycleRepeat() {
+    override fun cycleRepeat() {
         repeat = when (repeat) {
             RepeatMode.OFF -> RepeatMode.ALL
             RepeatMode.ALL -> RepeatMode.ONE
@@ -325,14 +289,14 @@ class PlayerController @Inject constructor(
 
     // ---- Cola ----
 
-    fun playNext(track: Track) = playNext(listOf(track))
-    fun addToQueue(track: Track) = addToQueue(listOf(track))
+    override fun playNext(track: Track) = playNext(listOf(track))
+    override fun addToQueue(track: Track) = addToQueue(listOf(track))
 
     /**
      * Primeras de la cola del usuario: suenan justo después de la actual, en su orden.
      * Sirve para una canción o para una playlist entera.
      */
-    fun playNext(tracks: List<Track>) {
+    override fun playNext(tracks: List<Track>) {
         val c = controller ?: return
         if (tracks.isEmpty()) return
         if (c.mediaItemCount == 0) return play(tracks)
@@ -340,7 +304,7 @@ class PlayerController @Inject constructor(
     }
 
     /** Al final de la cola del usuario, pero antes que el resto de la playlist. */
-    fun addToQueue(tracks: List<Track>) {
+    override fun addToQueue(tracks: List<Track>) {
         val c = controller ?: return
         if (tracks.isEmpty()) return
         if (c.mediaItemCount == 0) return play(tracks)
@@ -350,20 +314,20 @@ class PlayerController @Inject constructor(
     }
 
     /** Mueve una canción pendiente; [from] y [to] son posiciones reales del reproductor. */
-    fun move(from: Int, to: Int) {
+    override fun move(from: Int, to: Int) {
         val c = controller ?: return
         val valid = (c.currentMediaItemIndex + 1) until c.mediaItemCount
         if (from in valid && to in valid && from != to) c.moveMediaItem(from, to)
     }
 
-    fun removeAt(index: Int) {
+    override fun removeAt(index: Int) {
         val c = controller ?: return
         if (index in 0 until c.mediaItemCount && index != c.currentMediaItemIndex) {
             c.removeMediaItem(index)
         }
     }
 
-    fun jumpTo(index: Int) {
+    override fun jumpTo(index: Int) {
         controller?.run {
             seekToDefaultPosition(index)
             play()
