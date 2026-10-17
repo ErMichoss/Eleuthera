@@ -26,6 +26,16 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
+      # local.properties no está en el repo: se crea aquí con los secretos para que
+      # build.gradle.kts lo lea igual que en local. Desaparece al terminar el workflow.
+      - name: Crear local.properties con las claves de MusicBrainz
+        run: |
+          printf 'MUSICBRAINZ_CLIENT_ID=%s\nMUSICBRAINZ_CLIENT_SECRET=%s\n' \
+            "$MB_CLIENT_ID" "$MB_CLIENT_SECRET" >> local.properties
+        env:
+          MB_CLIENT_ID: ${{ secrets.MUSICBRAINZ_CLIENT_ID }}
+          MB_CLIENT_SECRET: ${{ secrets.MUSICBRAINZ_CLIENT_SECRET }}
+
       - name: Compilar APK firmado
         run: |
           chmod +x gradlew

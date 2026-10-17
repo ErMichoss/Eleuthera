@@ -23,4 +23,10 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Eleuthera"
+
+// app      -> Android
+// shared   -> código común (Kotlin Multiplatform): modelos, tema, pantallas, datos
+// desktop  -> Windows, Linux y macOS
 include(":app")
+include(":shared")
+include(":desktop")

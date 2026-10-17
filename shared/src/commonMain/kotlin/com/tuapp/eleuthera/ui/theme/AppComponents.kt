@@ -29,11 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.addOutline
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tuapp.eleuthera.domain.model.ComponentStyle
@@ -115,15 +111,9 @@ fun AppButton(
  */
 fun Modifier.neumorphic(base: Color, shape: Shape, depth: Dp = 6.dp): Modifier = drawBehind {
     val outline = shape.createOutline(size, layoutDirection, this)
-    val path = Path().apply { addOutline(outline) }.asAndroidPath()
+    val path = Path().apply { addOutline(outline) }
     val d = depth.toPx()
-    fun shadow(color: Color, offset: Float) = drawIntoCanvas { canvas ->
-        val paint = android.graphics.Paint().apply {
-            this.color = base.toArgb()
-            setShadowLayer(d * 1.5f, offset, offset, color.toArgb())
-        }
-        canvas.nativeCanvas.drawPath(path, paint)
-    }
-    shadow(lerp(base, Color.White, 0.18f), -d)
-    shadow(lerp(base, Color.Black, 0.40f), d)
+    // La sombra difuminada la pinta cada plataforma (Android y Skia lo hacen distinto).
+    drawSoftShadow(path, fill = base, shadow = lerp(base, Color.White, 0.18f), radius = d * 1.5f, offset = -d)
+    drawSoftShadow(path, fill = base, shadow = lerp(base, Color.Black, 0.40f), radius = d * 1.5f, offset = d)
 }

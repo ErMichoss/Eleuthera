@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // app/build.gradle.kts
 plugins {
@@ -77,14 +78,21 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
 
     // Obligatorio: la biblioteca ejecuta los .so como procesos, deben extraerse al disco.
     packaging { jniLibs { useLegacyPackaging = true } }
 }
 
+// Antes era kotlinOptions { jvmTarget = "17" } dentro de android { }: Kotlin 2.2 lo prohíbe.
+kotlin {
+    compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+}
+
 dependencies {
+    // Código común con la versión de escritorio (modelos, tema, pantallas...)
+    implementation(project(":shared"))
+
     // Motor de descarga
     val ytdl = "0.18.1"
     implementation("io.github.junkfood02.youtubedl-android:library:$ytdl")
@@ -100,8 +108,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 
     // Hilt
-    implementation("com.google.dagger:hilt-android:2.52")
-    ksp("com.google.dagger:hilt-compiler:2.52")
+    implementation("com.google.dagger:hilt-android:2.57.2")
+    ksp("com.google.dagger:hilt-compiler:2.57.2")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Descargas en segundo plano
@@ -116,7 +124,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     // Base de datos (playlists)
-    val room = "2.6.1"
+    val room = "2.7.2"
     implementation("androidx.room:room-runtime:$room")
     implementation("androidx.room:room-ktx:$room")
     ksp("androidx.room:room-compiler:$room")

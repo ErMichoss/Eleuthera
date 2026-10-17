@@ -13,28 +13,35 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.ExperimentalTextApi
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.tuapp.eleuthera.R
 import com.tuapp.eleuthera.domain.model.AppFont
 import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
+import com.tuapp.eleuthera.shared.resources.Res
+import com.tuapp.eleuthera.shared.resources.inter
+import com.tuapp.eleuthera.shared.resources.montserrat
+import com.tuapp.eleuthera.shared.resources.nunito
+import com.tuapp.eleuthera.shared.resources.playfair
+import org.jetbrains.compose.resources.Font
+import org.jetbrains.compose.resources.FontResource
 
 /** Estilo de botones y tarjetas elegido; lo leen AppCard y AppButton. */
 val LocalComponentStyle = staticCompositionLocalOf { ComponentStyle.FLAT }
 
 /**
  * Fuente variable: un solo archivo .ttf contiene todos los grosores, y aquí se declaran
- * los que usa Material (normal, medio, seminegrita y negrita).
+ * los que usa Material (normal, medio, seminegrita y negrita). Las fuentes están en
+ * shared/src/commonMain/composeResources/font y sirven igual en Android y escritorio.
  */
 @OptIn(ExperimentalTextApi::class)
-private fun variableFont(resId: Int) = FontFamily(
+@Composable
+private fun variableFont(resource: FontResource) = FontFamily(
     listOf(400, 500, 600, 700).map { weight ->
         Font(
-            resId = resId,
+            resource = resource,
             weight = FontWeight(weight),
             variationSettings = FontVariation.Settings(FontVariation.weight(weight)),
         )
@@ -84,10 +91,10 @@ fun AppTheme(config: ThemeConfig, content: @Composable () -> Unit) {
         AppFont.SERIF -> FontFamily.Serif
         AppFont.MONO -> FontFamily.Monospace
         AppFont.CURSIVE -> FontFamily.Cursive
-        AppFont.INTER -> variableFont(R.font.inter)
-        AppFont.MONTSERRAT -> variableFont(R.font.montserrat)
-        AppFont.NUNITO -> variableFont(R.font.nunito)
-        AppFont.PLAYFAIR -> variableFont(R.font.playfair)
+        AppFont.INTER -> variableFont(Res.font.inter)
+        AppFont.MONTSERRAT -> variableFont(Res.font.montserrat)
+        AppFont.NUNITO -> variableFont(Res.font.nunito)
+        AppFont.PLAYFAIR -> variableFont(Res.font.playfair)
     }
     val t = Typography()
     val typography = Typography(

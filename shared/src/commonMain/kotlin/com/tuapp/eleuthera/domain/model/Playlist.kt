@@ -1,6 +1,6 @@
 package com.tuapp.eleuthera.domain.model
 
-import android.net.Uri
+import com.tuapp.eleuthera.platform.PlatformUri
 
 /** Playlist lista para pintar: datos, tamaño y canciones para la portada. */
 data class Playlist(
@@ -9,7 +9,7 @@ data class Playlist(
     val trackCount: Int,
     val durationMs: Long,
     /** Hasta 4 canciones cuyas carátulas forman el mosaico de la portada. */
-    val covers: List<Uri>,
+    val covers: List<PlatformUri>,
     /** Imagen elegida por el usuario; si existe, sustituye al mosaico. */
     val customCover: String? = null,
 )

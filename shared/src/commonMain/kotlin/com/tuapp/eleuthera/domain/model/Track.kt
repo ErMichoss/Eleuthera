@@ -1,6 +1,6 @@
 package com.tuapp.eleuthera.domain.model
 
-import android.net.Uri
+import com.tuapp.eleuthera.platform.PlatformUri
 
 /** Una canción que ya está en el dispositivo. */
 data class Track(
@@ -12,5 +12,5 @@ data class Track(
     val durationMs: Long,
     /** Nombre de la playlist descargada, o "Eleuthera" para las canciones sueltas. */
     val folder: String,
-    val uri: Uri,
+    val uri: PlatformUri,
 )
