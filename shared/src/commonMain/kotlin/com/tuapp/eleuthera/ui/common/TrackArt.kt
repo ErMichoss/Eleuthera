@@ -1,12 +1,5 @@
 package com.tuapp.eleuthera.ui.common
 
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.media.MediaMetadataRetriever
-import android.net.Uri
-import android.util.LruCache
-import android.util.Size
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -25,34 +18,39 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import coil.compose.AsyncImage
+import com.tuapp.eleuthera.platform.PlatformUri
+import com.tuapp.eleuthera.ui.platform.LocalArtLoader
+import com.tuapp.eleuthera.ui.platform.decodeImage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Carátulas ya decodificadas, para que las listas no parpadeen al hacer scroll. */
-private val artCache = LruCache<Uri, ImageBitmap>(96)
+private val artCache = object : LinkedHashMap<PlatformUri, ImageBitmap>(128, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<PlatformUri, ImageBitmap>) = size > 96
+}
 
-/** Carátula incrustada en el MP3 (la miniatura del vídeo), o un icono si no tiene. */
+private fun cached(uri: PlatformUri): ImageBitmap? = synchronized(artCache) { artCache[uri] }
+
+/**
+ * Carátula incrustada en el archivo (la miniatura del vídeo), o un icono si no tiene.
+ * Cómo se saca depende de la plataforma ([LocalArtLoader]).
+ */
 @Composable
 fun TrackArt(
-    uri: Uri?,
+    uri: PlatformUri?,
     modifier: Modifier = Modifier,
     placeholder: ImageVector = Icons.Default.MusicNote,
 ) {
-    val context = LocalContext.current
-    val bitmap by produceState(initialValue = uri?.let(artCache::get), uri) {
-        if (uri == null) { value = null; return@produceState }
-        value = artCache.get(uri) ?: withContext(Dispatchers.IO) {
-            runCatching { context.contentResolver.loadThumbnail(uri, Size(240, 240), null) }
-                // Los archivos de carpetas añadidas no tienen miniatura de MediaStore.
-                .recoverCatching { embeddedArt(context, uri) ?: throw it }
-                .getOrNull()?.asImageBitmap()?.also { artCache.put(uri, it) }
+    val loader = LocalArtLoader.current
+    val bitmap by produceState(initialValue = uri?.let(::cached), uri) {
+        if (uri == null) {
+            value = null
+            return@produceState
         }
+        value = cached(uri) ?: loader(uri)?.also { synchronized(artCache) { artCache[uri] = it } }
     }
 
     Box(
@@ -82,14 +80,18 @@ fun TrackArt(
  * canciones, o una sola carátula si hay menos.
  */
 @Composable
-fun PlaylistCover(covers: List<Uri>, modifier: Modifier = Modifier, customCover: String? = null) {
+fun PlaylistCover(covers: List<PlatformUri>, modifier: Modifier = Modifier, customCover: String? = null) {
     if (customCover != null) {
-        AsyncImage(
-            model = File(customCover),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-        )
+        val image by produceState<ImageBitmap?>(null, customCover) {
+            value = withContext(Dispatchers.IO) {
+                runCatching { decodeImage(File(customCover).readBytes()) }.getOrNull()
+            }
+        }
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
+            image?.let {
+                Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+            }
+        }
         return
     }
     if (covers.size < 4) {
@@ -104,23 +106,5 @@ fun PlaylistCover(covers: List<Uri>, modifier: Modifier = Modifier, customCover:
                 }
             }
         }
-    }
-}
-
-/** Carátula incrustada en el archivo, reducida a unos [maxPx] píxeles. */
-private fun embeddedArt(context: Context, uri: Uri, maxPx: Int = 240): Bitmap? {
-    val r = MediaMetadataRetriever()
-    return try {
-        r.setDataSource(context, uri)
-        val bytes = r.embeddedPicture ?: return null
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        var sample = 1
-        while (bounds.outWidth / (sample * 2) >= maxPx && bounds.outHeight / (sample * 2) >= maxPx) sample *= 2
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
-    } catch (e: Exception) {
-        null
-    } finally {
-        r.release()
     }
 }

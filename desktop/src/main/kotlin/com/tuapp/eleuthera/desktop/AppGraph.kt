@@ -4,6 +4,7 @@ import com.tuapp.eleuthera.data.db.AppDatabase
 import com.tuapp.eleuthera.data.db.buildAppDatabase
 import com.tuapp.eleuthera.data.download.DesktopDownloads
 import com.tuapp.eleuthera.data.library.DesktopLibrary
+import com.tuapp.eleuthera.data.playlist.DesktopPlaylistStore
 import com.tuapp.eleuthera.data.settings.DesktopLibrarySettings
 import com.tuapp.eleuthera.data.settings.DownloadSettings
 import com.tuapp.eleuthera.data.settings.PlayerSettings
@@ -13,9 +14,12 @@ import com.tuapp.eleuthera.data.youtube.DesktopYtDlp
 import com.tuapp.eleuthera.platform.DesktopPaths
 import com.tuapp.eleuthera.platform.Tools
 import com.tuapp.eleuthera.playback.DesktopPlayerController
+import com.tuapp.eleuthera.ui.playlists.PlaylistsController
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -33,7 +37,19 @@ object AppGraph {
     val librarySettings by lazy { DesktopLibrarySettings(stores) }
     val library by lazy { DesktopLibrary(librarySettings, database.folderTrackDao()) }
     val ytDlp by lazy { DesktopYtDlp(downloadSettings) }
-    val downloads by lazy { DesktopDownloads(ytDlp, database.downloadDao(), library) }
+    val playlistStore by lazy {
+        DesktopPlaylistStore(
+            database.playlistDao(),
+            library.tracks.filterNotNull(),
+            File(DesktopPaths.dataDir, "covers"),
+        )
+    }
+    val downloads by lazy { DesktopDownloads(ytDlp, database.downloadDao(), library, playlistStore) }
+
+    /** Modelos de las pantallas comunes (lo que en Android son ViewModels). */
+    val playerUi by lazy { DesktopPlayerUi(player) }
+    val libraryModel by lazy { DesktopLibraryModel(library) }
+    val playlists by lazy { PlaylistsController(uiScope, playlistStore) }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

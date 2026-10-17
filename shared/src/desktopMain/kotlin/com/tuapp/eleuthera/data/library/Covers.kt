@@ -31,14 +31,23 @@ object Covers {
     private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp")
 
     /** La carátula de [track], o null si no tiene. */
-    suspend fun load(track: Track): ImageBitmap? {
-        val file = (track.uri as? FileUri)?.file ?: return null
-        val key = "%016x".format(DesktopLibrary.fnv(file.path + "|" + file.lastModified()))
+    suspend fun load(track: Track): ImageBitmap? = (track.uri as? FileUri)?.file?.let { load(it) }
+
+    /** La carátula de la canción [file], o null si no tiene. */
+    suspend fun load(file: File): ImageBitmap? {
+        val key = keyOf(file)
         synchronized(memory) { if (memory.containsKey(key)) return memory[key] }
         val image = withContext(io) { decode(cached(file, key)) }
         synchronized(memory) { memory[key] = image }
         return image
     }
+
+    /** La carátula de [file] en jpg (300 px), para el estado del reproductor. */
+    suspend fun bytes(file: File): ByteArray? = withContext(io) {
+        runCatching { cached(file, keyOf(file))?.readBytes() }.getOrNull()
+    }
+
+    private fun keyOf(file: File) = "%016x".format(DesktopLibrary.fnv(file.path + "|" + file.lastModified()))
 
     private fun cached(audio: File, key: String): File? {
         val jpg = File(dir, "$key.jpg")

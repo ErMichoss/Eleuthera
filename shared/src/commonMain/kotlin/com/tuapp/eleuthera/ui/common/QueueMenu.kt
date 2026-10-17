@@ -1,6 +1,5 @@
 package com.tuapp.eleuthera.ui.common
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
@@ -16,9 +15,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.ui.platform.LocalToast
 import kotlinx.coroutines.launch
 
 /**
@@ -38,7 +37,7 @@ fun QueueMenuButton(
 ) {
     var open by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
+    val toast = LocalToast.current
 
     fun send(next: Boolean) {
         open = false
@@ -48,7 +47,7 @@ fun QueueMenuButton(
             if (next) onPlayNext(tracks) else onAddToQueue(tracks)
             val msg = if (next) "${tracks.size} canciones sonarán a continuación"
             else "${tracks.size} canciones añadidas a la cola"
-            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            toast(msg)
         }
     }
 

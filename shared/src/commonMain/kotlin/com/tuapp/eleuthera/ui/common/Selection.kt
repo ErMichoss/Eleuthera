@@ -1,6 +1,5 @@
 package com.tuapp.eleuthera.ui.common
 
-import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -31,9 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.ui.platform.LocalToast
 
 /** Una acción extra de la barra de selección (p. ej. "Quitar de esta playlist"). */
 data class SelectionAction(val label: String, val destructive: Boolean = false, val run: (List<Track>) -> Unit)
@@ -54,14 +53,14 @@ fun SelectionBar(
     onAddToPlaylist: (List<Track>) -> Unit,
     extraActions: List<SelectionAction> = emptyList(),
 ) {
-    val context = LocalContext.current
+    val toast = LocalToast.current
     var menu by remember { mutableStateOf(false) }
 
     /** Hace la acción, avisa con [message] y sale de la selección. */
     fun done(message: String? = null, action: () -> Unit) {
         menu = false
         action()
-        message?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+        message?.let(toast)
         onClose()
     }
 

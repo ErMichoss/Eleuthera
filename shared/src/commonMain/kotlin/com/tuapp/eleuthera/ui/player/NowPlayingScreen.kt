@@ -41,6 +41,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,7 +54,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuapp.eleuthera.data.settings.LoadedSkin
 import com.tuapp.eleuthera.playback.PlayerState
 import com.tuapp.eleuthera.playback.QueueItem
@@ -62,11 +62,19 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.ReorderableLazyListState
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-/** Pantalla completa del reproductor, con la cola integrada. */
+/**
+ * Pantalla completa del reproductor, con la cola integrada. [extraControls] va debajo de
+ * los botones (en escritorio, el volumen).
+ */
 @Composable
-fun NowPlayingScreen(vm: PlayerViewModel, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    val state by vm.state.collectAsStateWithLifecycle()
-    val position by vm.positionMs.collectAsStateWithLifecycle()
+fun NowPlayingScreen(
+    vm: PlayerUi,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    extraControls: @Composable () -> Unit = {},
+) {
+    val state by vm.state.collectAsState()
+    val position by vm.positionMs.collectAsState()
     var showQueue by rememberSaveable { mutableStateOf(false) }
 
     Surface(modifier.fillMaxSize()) {
@@ -91,9 +99,11 @@ fun NowPlayingScreen(vm: PlayerViewModel, onClose: () -> Unit, modifier: Modifie
                 if (showQueue) {
                     QueueList(state, vm)
                 } else {
+                    // El cuadrado más grande que quepa: en el móvil manda el ancho; en una
+                    // ventana ancha de escritorio, el alto.
                     Artwork(
                         state,
-                        Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)),
+                        Modifier.aspectRatio(1f).clip(RoundedCornerShape(16.dp)),
                     )
                 }
             }
@@ -113,9 +123,10 @@ fun NowPlayingScreen(vm: PlayerViewModel, onClose: () -> Unit, modifier: Modifie
                 overflow = TextOverflow.Ellipsis,
             )
 
-            val skin by vm.progressSkin.collectAsStateWithLifecycle()
+            val skin by vm.progressSkin.collectAsState()
             SeekBar(position, state.durationMs, skin, state.isPlaying, vm::seekTo)
             Controls(state, vm)
+            extraControls()
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -163,7 +174,7 @@ private fun SeekBar(
 }
 
 @Composable
-private fun Controls(state: PlayerState, vm: PlayerViewModel) {
+private fun Controls(state: PlayerState, vm: PlayerUi) {
     val active = MaterialTheme.colorScheme.primary
     val idle = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
@@ -207,7 +218,7 @@ private fun Controls(state: PlayerState, vm: PlayerViewModel) {
 }
 
 @Composable
-private fun QueueList(state: PlayerState, vm: PlayerViewModel) {
+private fun QueueList(state: PlayerState, vm: PlayerUi) {
     // Copia local: se reordena al instante mientras se arrastra y se confirma al soltar.
     val upcoming = state.userQueue + state.upNext
     var local by remember { mutableStateOf(upcoming) }
@@ -305,7 +316,7 @@ private fun SectionHeader(text: String) {
 private fun LazyItemScope.QueueRow(
     item: QueueItem,
     reorderState: ReorderableLazyListState,
-    vm: PlayerViewModel,
+    vm: PlayerUi,
     onDragStopped: () -> Unit,
 ) {
     ReorderableItem(reorderState, key = item.key) { dragging ->

@@ -1,5 +1,6 @@
 package com.tuapp.eleuthera.playback
 
+import com.tuapp.eleuthera.data.library.Covers
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.platform.FileUri
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +64,9 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
 
     /** Duración de la canción actual (de la biblioteca o, si falta, leída con ffmpeg). */
     private var durationMs = 0L
+
+    /** Carátula de la canción actual (jpg), que se carga en segundo plano al empezar. */
+    private var artwork: ByteArray? = null
     private var tickerJob: Job? = null
 
     override val positionMs: Long get() = if (index in items.indices) engine.positionMs else 0L
@@ -195,6 +199,14 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
             engine.stop()
         } else {
             engine.load(file)
+            artwork = null
+            scope.launch {
+                val bytes = Covers.bytes(file)
+                if (current === entry) {
+                    artwork = bytes
+                    sync()
+                }
+            }
             if (durationMs <= 0) {
                 // Archivo sin duración en la biblioteca: se lee de la cabecera, sin bloquear.
                 scope.launch {
@@ -267,7 +279,7 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
             mediaId = now?.track?.id?.toString(),
             title = now?.track?.title.orEmpty(),
             artist = now?.track?.artist.orEmpty(),
-            artwork = null,   // carátulas: llegan con la biblioteca de escritorio (fase 4)
+            artwork = artwork,
             currentIndex = index.coerceAtLeast(0),
             userQueue = queue.filter { it.userQueued },
             upNext = queue.filterNot { it.userQueued },

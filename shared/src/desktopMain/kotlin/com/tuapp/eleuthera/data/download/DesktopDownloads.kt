@@ -3,6 +3,7 @@ package com.tuapp.eleuthera.data.download
 import com.tuapp.eleuthera.data.db.DownloadDao
 import com.tuapp.eleuthera.data.db.VideoTrackEntity
 import com.tuapp.eleuthera.data.library.DesktopLibrary
+import com.tuapp.eleuthera.data.playlist.PlaylistStore
 import com.tuapp.eleuthera.data.youtube.DesktopYtDlp
 import com.tuapp.eleuthera.domain.model.DownloadStatus
 import com.tuapp.eleuthera.domain.model.RemoteTrack
@@ -30,8 +31,8 @@ import kotlinx.coroutines.sync.withPermit
  * Android: como mucho [MAX_PARALLEL] a la vez, reintentos, sin duplicados, y si la canción
  * ya está descargada no se vuelve a bajar.
  *
- * Las canciones de una playlist van a su subcarpeta de Música/Eleuthera, igual que en
- * Android. Añadirlas a la playlist de la app llegará con las pantallas (fase 5).
+ * Las canciones de una playlist van a su subcarpeta de Música/Eleuthera y a la playlist
+ * de la app con el mismo nombre (se crea si no existe), en su orden, igual que en Android.
  *
  * La cola vive en memoria: si se cierra la app, lo pendiente se pierde.
  */
@@ -39,8 +40,10 @@ class DesktopDownloads(
     private val engine: DesktopYtDlp,
     private val dao: DownloadDao,
     private val library: DesktopLibrary,
+    private val playlists: PlaylistStore,
 ) {
-    data class Item(val track: RemoteTrack, val playlist: String?, val status: DownloadStatus)
+    /** [index] es la posición de la canción dentro de [playlist]. */
+    data class Item(val track: RemoteTrack, val playlist: String?, val index: Int, val status: DownloadStatus)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val semaphore = Semaphore(MAX_PARALLEL)
@@ -52,22 +55,22 @@ class DesktopDownloads(
     val items: StateFlow<List<Item>> = _items.asStateFlow()
 
     /** Pide la canción. Si ya está en cola o descargándose, no hace nada. */
-    fun enqueue(track: RemoteTrack, playlist: String? = null) = synchronized(lock) {
+    fun enqueue(track: RemoteTrack, playlist: String? = null, index: Int = 0) = synchronized(lock) {
         val existing = _items.value.firstOrNull { it.track.id == track.id }
         if (existing != null && (existing.status is DownloadStatus.Queued || existing.status is DownloadStatus.Running)) {
             return@synchronized
         }
-        val item = Item(track, playlist, DownloadStatus.Queued)
+        val item = Item(track, playlist, index, DownloadStatus.Queued)
         _items.update { list ->
             if (existing != null) list.map { if (it.track.id == track.id) item else it } else list + item
         }
-        jobs[track.id] = scope.launch { run(track, playlist) }
+        jobs[track.id] = scope.launch { run(track, playlist, index) }
     }
 
     /** Vídeo suelto o playlist completa. Devuelve cuántas canciones se han pedido. */
     suspend fun enqueueUrl(url: String): Int {
         val resolved = engine.resolve(url)
-        resolved.tracks.forEach { enqueue(it, resolved.playlistTitle) }
+        resolved.tracks.forEachIndexed { i, t -> enqueue(t, resolved.playlistTitle, i) }
         return resolved.tracks.size
     }
 
@@ -84,7 +87,7 @@ class DesktopDownloads(
     }
 
     fun retry(videoId: String) {
-        _items.value.firstOrNull { it.track.id == videoId }?.let { enqueue(it.track, it.playlist) }
+        _items.value.firstOrNull { it.track.id == videoId }?.let { enqueue(it.track, it.playlist, it.index) }
     }
 
     /** Quita de la lista las terminadas y las fallidas. */
@@ -92,11 +95,12 @@ class DesktopDownloads(
         list.filter { it.status is DownloadStatus.Queued || it.status is DownloadStatus.Running }
     }
 
-    private suspend fun run(track: RemoteTrack, playlist: String?) {
+    private suspend fun run(track: RemoteTrack, playlist: String?, index: Int) {
         try {
             // ¿Ya la tenemos? Entonces no se descarga otra vez.
             dao.trackIdFor(track.id)?.let { trackId ->
                 if (library.tracks.value?.any { it.id == trackId } == true) {
+                    if (playlist != null) playlists.addDownloaded(playlist, trackId, index)
                     setStatus(track.id, DownloadStatus.Done)
                     return
                 }
@@ -116,7 +120,9 @@ class DesktopDownloads(
                             }
                         }
                         val dest = publish(file, playlist)
-                        dao.setTrack(VideoTrackEntity(track.id, DesktopLibrary.idFor(dest.absolutePath)))
+                        val trackId = DesktopLibrary.idFor(dest.absolutePath)
+                        dao.setTrack(VideoTrackEntity(track.id, trackId))
+                        if (playlist != null) playlists.addDownloaded(playlist, trackId, index)
                         library.refresh()
                         setStatus(track.id, DownloadStatus.Done)
                         return

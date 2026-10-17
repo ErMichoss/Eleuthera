@@ -46,8 +46,12 @@ kotlin {
             // Base de datos (playlists, descargas, carpetas) y ajustes.
             api("androidx.room:room-runtime:$room")
             api("androidx.datastore:datastore-preferences-core:1.1.7")
+            // Reordenar la cola arrastrando (funciona en Android y escritorio).
+            implementation("sh.calvin.reorderable:reorderable:2.4.3")
         }
         androidMain.dependencies {
+            // BackHandler (botón/gesto atrás) para las pantallas comunes.
+            implementation("androidx.activity:activity-compose:1.9.3")
             // SQLite del propio Android.
             implementation("androidx.sqlite:sqlite-framework:$sqlite")
         }
