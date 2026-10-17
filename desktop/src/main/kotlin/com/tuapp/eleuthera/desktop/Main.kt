@@ -23,7 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -37,6 +39,7 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -72,7 +75,6 @@ import com.tuapp.eleuthera.data.library.Covers
 import com.tuapp.eleuthera.domain.model.ThemeConfig
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.platform.DesktopPaths
-import com.tuapp.eleuthera.playback.Ffmpeg
 import com.tuapp.eleuthera.playback.PlayerState
 import com.tuapp.eleuthera.playback.RepeatMode
 import com.tuapp.eleuthera.ui.theme.AppTheme
@@ -87,6 +89,8 @@ import kotlinx.coroutines.launch
 fun main() {
     // Diálogos de Swing (elegir carpeta) con el aspecto del sistema, no el de Java.
     runCatching { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()) }
+    // yt-dlp, ffmpeg y Deno: se descargan solos si faltan.
+    AppGraph.prepareTools()
 
     application {
         Window(
@@ -98,22 +102,23 @@ fun main() {
             state = rememberWindowState(width = 1200.dp, height = 760.dp),
         ) {
             val theme by AppGraph.themeRepository.config.collectAsState(ThemeConfig())
-            AppTheme(theme) { LibraryScreen() }
+            AppTheme(theme) { MainScreen() }
         }
     }
 }
 
+private enum class Tab(val label: String) { LIBRARY("Biblioteca"), DOWNLOADS("Descargar") }
+
 @Composable
-private fun LibraryScreen() {
+private fun MainScreen() {
     val player = AppGraph.player
     val state by player.state.collectAsState()
     val error by player.error.collectAsState()
     val library by AppGraph.library.tracks.collectAsState()
     val pendingTags by AppGraph.library.pendingTags.collectAsState()
     var query by remember { mutableStateOf("") }
-    val ffmpegMissing = remember { Ffmpeg.find() == null }
+    var tab by remember { mutableStateOf(Tab.LIBRARY) }
 
-    // Orden: artista, álbum, título. El buscador mira las tres cosas.
     // Biblioteca ordenada (artista, álbum, título) con el texto en el que se busca ya
     // preparado: así filtrar al escribir es instantáneo aunque haya miles de canciones.
     val indexed = remember(library) {
@@ -141,40 +146,54 @@ private fun LibraryScreen() {
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text("Eleuthera", style = MaterialTheme.typography.headlineMedium)
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    singleLine = true,
-                    placeholder = { Text("Buscar canción, artista o álbum") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = if (query.isNotEmpty()) {
-                        { IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Borrar") } }
-                    } else null,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    when {
-                        library == null -> "Leyendo carpetas…"
-                        pendingTags > 0 -> "${library!!.size} canciones · leyendo etiquetas ($pendingTags)"
-                        else -> "${library!!.size} canciones"
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Tab.entries.forEach { t ->
+                        FilterChip(
+                            selected = tab == t,
+                            onClick = { tab = t },
+                            label = { Text(t.label) },
+                            leadingIcon = {
+                                Icon(
+                                    if (t == Tab.LIBRARY) Icons.Default.LibraryMusic else Icons.Default.Download,
+                                    contentDescription = null,
+                                )
+                            },
+                        )
+                    }
+                }
+                if (tab == Tab.LIBRARY) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        placeholder = { Text("Buscar canción, artista o álbum") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = if (query.isNotEmpty()) {
+                            { IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Borrar") } }
+                        } else null,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        when {
+                            library == null -> "Leyendo carpetas…"
+                            pendingTags > 0 -> "${library!!.size} canciones · leyendo etiquetas ($pendingTags)"
+                            else -> "${library!!.size} canciones"
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
             }
-            if (ffmpegMissing) {
-                Text(
-                    "No se encuentra ffmpeg: sin él no se puede reproducir ni leer etiquetas. " +
-                            "De momento instálalo (en Windows: winget install Gyan.FFmpeg) y reinicia.",
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
+            ToolsBanner()
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
             }
             HorizontalDivider()
 
-            Row(Modifier.weight(1f).fillMaxWidth()) {
+            if (tab == Tab.DOWNLOADS) {
+                DownloadsScreen(Modifier.weight(1f).fillMaxWidth())
+            } else Row(Modifier.weight(1f).fillMaxWidth()) {
                 FoldersPanel(Modifier.width(240.dp).fillMaxHeight())
                 VerticalDivider()
                 TrackList(
