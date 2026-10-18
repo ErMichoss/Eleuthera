@@ -145,34 +145,6 @@ class MusicBrainzViewModel : ViewModel() {
         return str.replace(Regex("([+\\-|!(){}\\[\\]^\"~*?:\\\\/])")) { "\\${it.value}" }
     }
 
-    /*
-    fun openRecordingModal(context: Context, recording: Recording, mbid: String?) {
-        // Mostramos inmediatamente la información básica que ya tenemos
-        selectedRecording = recording
-        selectedRelease = null
-        selectedImageTitle = recording.title
-        selectedImageMbid = mbid
-        isModalOpen = true
-
-        // Hacemos la petición de tipo Lookup en segundo plano para traer géneros y relaciones completas
-        viewModelScope.launch {
-            try {
-                val detailedRecording = musicBrainzService.getRecordingDetails(recording.id)
-                // Actualizamos el estado con la grabación enriquecida
-                selectedRecording = detailedRecording
-            } catch (e: Exception) {
-                // Si ocurre un error de red aquí, mantenemos los datos básicos previos
-                val errorMessage = e.localizedMessage ?: "Error desconocido"
-                Toast.makeText(
-                    context,
-                    "Error: $errorMessage. Usando Metadatos reducidos (Credenciales MusicBrainz)",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-    }
-    */
-
     fun openRecordingModal(context: Context, recording: Recording, mbid: String?) {
         selectedRecording = recording
         selectedRelease = null

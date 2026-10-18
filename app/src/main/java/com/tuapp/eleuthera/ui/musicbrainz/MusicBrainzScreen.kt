@@ -128,12 +128,12 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                             val hasFailed = viewModel.failedImages[rec.id] == true
 
                             RecordingRowItem(
-                                title = rec?.title ?: "N/A",
+                                title = rec.title ?: "N/A",
                                 artist = artistName,
                                 releaseTitle = release?.title ?: "N/A",
                                 coverUrl = coverUrl,
                                 hasFailed = hasFailed,
-                                onImageError = { viewModel.markImageAsFailed(rec!!.id!!) },
+                                onImageError = { viewModel.markImageAsFailed(rec.id!!) },
                                 onImageClick = {
                                     viewModel.openRecordingModal(context = context, rec, releaseMbid)
                                 }
@@ -259,7 +259,7 @@ fun MetadataModal(context: Context, viewModel: MusicBrainzViewModel){
                                 item { MetadataRow("Número de Disco:", num) }
                             }
 
-                            item { MetadataRow("Recording MBID:", rec!!.id!!) }
+                            item { MetadataRow("Recording MBID:", rec.id!!) }
                             release?.id?.let { item { MetadataRow("Release MBID:", it) } }
                         }
 
@@ -267,7 +267,7 @@ fun MetadataModal(context: Context, viewModel: MusicBrainzViewModel){
                             val artistName = rel.artistCredit?.joinToString(", ") { it.name ?: "" }.takeIf { !it.isNullOrBlank() } ?: "Desconocido"
                             val year = rel.date?.take(4) ?: "N/A"
 
-                            // 1. Metadatos principales del álbum arriba del todo
+                            // Metadatos principales del álbum arriba
                             item { MetadataRow("Artista / Banda:", artistName) }
                             item { MetadataRow("Estado:", rel.status ?: "Álbum") }
                             item { MetadataRow("Año de Lanzamiento:", year) }
@@ -275,7 +275,7 @@ fun MetadataModal(context: Context, viewModel: MusicBrainzViewModel){
                             item { MetadataRow("Total de Pistas:", rel.trackCount?.toString() ?: "N/A") }
                             item { MetadataRow("Release MBID:", rel.id ?: "ID desconocido") }
 
-                            // 2. Botón para cargar los detalles de las canciones bajo demanda
+                            // Botón para cargar los detalles de las canciones bajo demanda
                             item {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 AppButton(
@@ -287,7 +287,7 @@ fun MetadataModal(context: Context, viewModel: MusicBrainzViewModel){
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
 
-                            // 3. Separador y Título de la lista de canciones
+                            // Separador y Título de la lista de canciones
                             item {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
@@ -298,7 +298,7 @@ fun MetadataModal(context: Context, viewModel: MusicBrainzViewModel){
                                 HorizontalDivider()
                             }
 
-                            // 4. Procesamiento seguro de las pistas del álbum
+                            // Procesamiento seguro de las pistas del álbum
                             val allTracks = rel.media?.flatMap { media ->
                                 val discNumber = media.position ?: 1
                                 media.tracks.orEmpty().map { track ->
@@ -307,8 +307,6 @@ fun MetadataModal(context: Context, viewModel: MusicBrainzViewModel){
                             }?.sortedWith(compareBy({ it.first }, { it.second }))
 
                             if (!allTracks.isNullOrEmpty()) {
-                                // CORRECCIÓN CLAVE: Usamos un enfoque seguro basado en índices para detectar cambios de disco
-                                // sin romper las reglas de renderizado de Compose ni mutar variables locales al vuelo.
                                 allTracks.forEachIndexed { index, (disc, _, track) ->
                                     val previousDisc = if (index > 0) allTracks[index - 1].first else -1
 
@@ -353,7 +351,7 @@ fun MetadataModal(context: Context, viewModel: MusicBrainzViewModel){
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                // ANIMACIÓN DE CARGA O ICONO DE RECARGA INTERACTIVO
+                                                // Animacion de carga
                                                 if (isLoading) {
                                                     CircularProgressIndicator(
                                                         modifier = Modifier.size(16.dp),
