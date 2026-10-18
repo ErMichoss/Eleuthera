@@ -1,16 +1,21 @@
 package com.tuapp.eleuthera.ui.musicbrainz
 
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrokenImage
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -123,12 +128,12 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                             val hasFailed = viewModel.failedImages[rec.id] == true
 
                             RecordingRowItem(
-                                title = rec.title,
+                                title = rec?.title ?: "N/A",
                                 artist = artistName,
                                 releaseTitle = release?.title ?: "N/A",
                                 coverUrl = coverUrl,
                                 hasFailed = hasFailed,
-                                onImageError = { viewModel.markImageAsFailed(rec.id) },
+                                onImageError = { viewModel.markImageAsFailed(rec!!.id!!) },
                                 onImageClick = {
                                     viewModel.openRecordingModal(context = context, rec, releaseMbid)
                                 }
@@ -148,14 +153,14 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                             val hasFailed = viewModel.failedImages[rel.id] == true
 
                             RecordingRowItem(
-                                title = rel.title,
+                                title = rel.title?: "Desconocido",
                                 artist = artistName,
                                 releaseTitle = rel.status ?: "Álbum",
                                 coverUrl = coverUrl,
                                 hasFailed = hasFailed,
-                                onImageError = { viewModel.markImageAsFailed(rel.id) },
+                                onImageError = { viewModel.markImageAsFailed(rel.id?: "ID desconocido") },
                                 onImageClick = {
-                                    viewModel.openReleaseModal(rel)
+                                    viewModel.openReleaseModal(context=context, rel)
                                 }
                             )
                         }
@@ -166,6 +171,12 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
     }
 
     // Modal para ver la carátula y detalles en alta resolución
+    MetadataModal(context, viewModel)
+}
+
+// Modal de metadatos
+@Composable
+fun MetadataModal(context: Context, viewModel: MusicBrainzViewModel){
     if (viewModel.isModalOpen) {
         Dialog(onDismissRequest = { viewModel.closeImageModal() }) {
             AppCard(
@@ -212,15 +223,13 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         viewModel.selectedRecording?.let { rec ->
-                            val artistName = rec.artistCredit?.joinToString(", ") { it.name ?: "" }.takeIf { !it.isNullOrBlank() } ?: "Desconocido"
-                            val genres = rec.tagList?.joinToString(", ") { it.name ?: "" }.takeIf { !it.isNullOrBlank() } ?: "-"
+                            val artistName = rec.artistCredit?.joinToString(", ") { it.name ?: "" }
+                                .takeIf { !it.isNullOrBlank() } ?: "Desconocido"
 
-                            var composer = "-"
-                            var lyricist = "-"
-                            rec.relationList?.forEach { rel ->
-                                if (rel.type == "composer" && rel.artist?.name != null) composer = rel.artist.name
-                                if (rel.type == "lyricist" && rel.artist?.name != null) lyricist = rel.artist.name
-                            }
+                            // 1. Buscamos primero en genres y luego en tagList
+                            val genresList = rec.genres ?: rec.tagList
+                            val genres = genresList?.joinToString(", ") { it.name ?: "" }
+                                .takeIf { !it.isNullOrBlank() } ?: "No especificado"
 
                             val release = rec.releases?.firstOrNull()
                             val year = release?.date?.take(4) ?: "N/A"
@@ -228,33 +237,29 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                             var trackNum: String? = null
                             var discNum: String? = null
 
-                            release?.media?.let { mediaList ->
-                                mediaList.forEachIndexed { index, media ->
+                            release?.media?.forEachIndexed { index, media ->
+                                val foundTrack = media.tracks?.find { track ->
+                                    track.title.equals(rec.title, ignoreCase = true)
+                                }
+                                if (foundTrack != null) {
+                                    trackNum = foundTrack.number
                                     discNum = media.position?.toString() ?: (index + 1).toString()
-
-                                    val foundTrack = media.track?.find { track ->
-                                        track.title.equals(rec.title, ignoreCase = true)
-                                    }
-
-                                    if (foundTrack != null) {
-                                        trackNum = foundTrack.number
-                                        return@forEachIndexed
-                                    }
+                                    return@forEachIndexed
                                 }
                             }
 
                             item { MetadataRow("Artista:", artistName) }
-                            item { MetadataRow("Género:", genres) }
-                            item { MetadataRow("Compositor:", composer) }
-                            item { MetadataRow("Letrista:", lyricist) }
+                            item { MetadataRow("Género:", genres) } // Ahora mostrará "classic rock, hard rock, rock"
                             item { MetadataRow("Álbum:", release?.title ?: "N/A") }
                             item { MetadataRow("Año:", year) }
                             item { MetadataRow("Duración:", formatDuration(rec.length)) }
 
-                            trackNum?.let { item { MetadataRow("Número de Pista:", it) } }
-                            discNum?.let { item { MetadataRow("Número de Disco:", it) } }
+                            item { MetadataRow("Número de Pista:", trackNum ?: "N/A") }
+                            discNum?.let { num ->
+                                item { MetadataRow("Número de Disco:", num) }
+                            }
 
-                            item { MetadataRow("Recording MBID:", rec.id) }
+                            item { MetadataRow("Recording MBID:", rec!!.id!!) }
                             release?.id?.let { item { MetadataRow("Release MBID:", it) } }
                         }
 
@@ -262,21 +267,172 @@ fun MusicBrainzScreen(viewModel: MusicBrainzViewModel = androidx.lifecycle.viewm
                             val artistName = rel.artistCredit?.joinToString(", ") { it.name ?: "" }.takeIf { !it.isNullOrBlank() } ?: "Desconocido"
                             val year = rel.date?.take(4) ?: "N/A"
 
+                            // 1. Metadatos principales del álbum arriba del todo
                             item { MetadataRow("Artista / Banda:", artistName) }
                             item { MetadataRow("Estado:", rel.status ?: "Álbum") }
                             item { MetadataRow("Año de Lanzamiento:", year) }
                             item { MetadataRow("País:", rel.country ?: "N/A") }
                             item { MetadataRow("Total de Pistas:", rel.trackCount?.toString() ?: "N/A") }
-                            item { MetadataRow("Release MBID:", rel.id) }
+                            item { MetadataRow("Release MBID:", rel.id ?: "ID desconocido") }
+
+                            // 2. Botón para cargar los detalles de las canciones bajo demanda
+                            item {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                AppButton(
+                                    onClick = { viewModel.loadAllTracksDetails() },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Cargar detalles de las canciones")
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+
+                            // 3. Separador y Título de la lista de canciones
+                            item {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Canciones del Álbum",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                                HorizontalDivider()
+                            }
+
+                            // 4. Procesamiento seguro de las pistas del álbum
+                            val allTracks = rel.media?.flatMap { media ->
+                                val discNumber = media.position ?: 1
+                                media.tracks.orEmpty().map { track ->
+                                    Triple(discNumber, track.number?.toIntOrNull() ?: 0, track)
+                                }
+                            }?.sortedWith(compareBy({ it.first }, { it.second }))
+
+                            if (!allTracks.isNullOrEmpty()) {
+                                // CORRECCIÓN CLAVE: Usamos un enfoque seguro basado en índices para detectar cambios de disco
+                                // sin romper las reglas de renderizado de Compose ni mutar variables locales al vuelo.
+                                allTracks.forEachIndexed { index, (disc, _, track) ->
+                                    val previousDisc = if (index > 0) allTracks[index - 1].first else -1
+
+                                    // Si es el primer elemento o el disco cambia respecto al anterior, inyectamos la cabecera
+                                    if (disc != previousDisc) {
+                                        item(key = "disc_$disc") {
+                                            Text(
+                                                text = "Disco $disc",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    item(key = "track_${track.id ?: track.title}_$disc${track.number}") {
+                                        val trackKey = track.id ?: track.title ?: ""
+                                        val syncStatus = viewModel.trackSyncStatuses[trackKey] ?: MusicBrainzViewModel.TrackSyncStatus.PENDING
+                                        val isLoading = viewModel.trackLoadingStates[trackKey] == true
+
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    track.recording?.let { recording ->
+                                                        val mbidForCover = recording.releases?.firstOrNull()?.id ?: viewModel.selectedRelease?.id
+                                                        viewModel.openRecordingModalDirectly(recording, mbidForCover, parentRelease = viewModel.selectedRelease)
+                                                    }
+                                                }
+                                                .padding(vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "${track.number ?: "-"}. ${track.title ?: "Sin título"}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.weight(1f)
+                                            )
+
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                // ANIMACIÓN DE CARGA O ICONO DE RECARGA INTERACTIVO
+                                                if (isLoading) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(16.dp),
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                } else {
+                                                    // Icono según el estado, que al hacer clic vuelve a disparar la recarga individual
+                                                    IconButton(
+                                                        onClick = { viewModel.reloadSingleTrack(track) },
+                                                        modifier = Modifier.size(24.dp)
+                                                    ) {
+                                                        when (syncStatus) {
+                                                            MusicBrainzViewModel.TrackSyncStatus.SYNCED -> {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.CheckCircle,
+                                                                    contentDescription = "Sincronizado (Click para recargar)",
+                                                                    tint = Color(0xFF4CAF50),
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                            MusicBrainzViewModel.TrackSyncStatus.ERROR -> {
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Error,
+                                                                    contentDescription = "Error (Click para reintentar)",
+                                                                    tint = Color(0xFFE53935),
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                            MusicBrainzViewModel.TrackSyncStatus.PENDING -> {
+                                                                // Un icono sutil de sincronización/recarga cuando está pendiente
+                                                                Icon(
+                                                                    imageVector = Icons.Default.Refresh,
+                                                                    contentDescription = "Cargar pista",
+                                                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                                                    modifier = Modifier.size(16.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                track.length?.let { lengthMs ->
+                                                    Text(
+                                                        text = formatDuration(lengthMs),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    // Botón de cierre
-                    AppButton(
-                        onClick = { viewModel.closeImageModal() },
-                        modifier = Modifier.align(Alignment.End)
+                    // Fila inferior con el botón de Volver (si aplica) y el botón de Cerrar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Cerrar")
+                        // Si venimos de un álbum, mostramos el botón para volver a él
+                        if (viewModel.previousRelease != null) {
+                            OutlinedButton(
+                                onClick = { viewModel.backToReleaseModal() }
+                            ) {
+                                Text("← Volver al Álbum")
+                            }
+                        }
+
+                        // Botón principal de cierre del modal
+                        AppButton(
+                            onClick = { viewModel.closeImageModal() }
+                        ) {
+                            Text("Cerrar")
+                        }
                     }
                 }
             }
@@ -352,3 +508,4 @@ fun formatDuration(ms: Long?): String {
     val minutes = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(ms)
     return String.format("%d:%02d", minutes, seconds)
 }
+

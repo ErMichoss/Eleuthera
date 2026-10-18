@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
@@ -15,6 +16,12 @@ class MusicBrainzService {
     private var accessToken: String? = null
 
     // Configuración de OkHttp con credenciales
+    private val loggingInterceptor = HttpLoggingInterceptor { message ->
+        Log.d("MusicBrainzNetwork", message)
+    }.apply {
+        level = HttpLoggingInterceptor.Level.BODY // Imprime el cuerpo completo de la respuesta
+    }
+
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor { chain ->
             val originalRequest = chain.request()
@@ -28,6 +35,7 @@ class MusicBrainzService {
 
             chain.proceed(requestBuilder.build())
         }
+        .addInterceptor(loggingInterceptor)
         .build()
 
     // Intercambia el código por el token y lo almacena
@@ -40,10 +48,10 @@ class MusicBrainzService {
                     code = code
                 )
                 accessToken = response.accessToken
-                true // Éxito
+                true
             } catch (e: Exception) {
                 e.printStackTrace()
-                false // Falló el intercambio
+                false
             }
         }
     }
@@ -63,21 +71,21 @@ class MusicBrainzService {
         }
     }
 
+    suspend fun getRecordingDetails(id: String): Recording {
+        return withContext(Dispatchers.IO) {
+            api.getRecordingDetails(id = id)
+        }
+    }
+
     suspend fun searchReleases(query: String, limit: Int): ReleaseSearchResponse {
         return withContext(Dispatchers.IO) {
             api.searchReleases(query = query, limit = limit)
         }
     }
 
-    suspend fun getRecordingDetails(id: String): Recording {
+    suspend fun getReleaseDetails(id: String): Release {
         return withContext(Dispatchers.IO) {
-            val response = api.getRecordingDetails(id = id)
-
-            // CON ESTO IMPRIMIRÁS EL JSON EN EL LOGCAT
-            val jsonString = Gson().toJson(response)
-            Log.d("MusicBrainzDebug", "JSON Detalle de Grabación: $jsonString")
-
-            response
+            api.getReleaseDetails(id = id)
         }
     }
 }

@@ -17,19 +17,20 @@ data class ReleaseSearchResponse(
 )
 
 data class Recording(
-    @SerializedName("id") val id: String,
-    @SerializedName("title") val title: String,
+    @SerializedName("id") val id: String?,
+    @SerializedName("title") val title: String?,
     @SerializedName("length") val length: Long?,
+    @SerializedName("disambiguation") val disambiguation: String?,
+    @SerializedName("first-release-date") val firstReleaseDate: String?,
     @SerializedName("artist-credit") val artistCredit: List<ArtistCredit>?,
     @SerializedName("releases") val releases: List<Release>?,
-    @SerializedName("tag-list") val tagList: List<Tag>?,
-    @SerializedName("genres") val genres: List<Tag>?, // Añadido para capturar los géneros oficiales
-    @SerializedName("relation-list") val relationList: List<Relation>?
+    @SerializedName("tags") val tagList: List<Tag>?,
+    @SerializedName("genres") val genres: List<Tag>? // Por si vienen los géneros procesados
 )
 
 data class Release(
-    @SerializedName("id") val id: String,
-    @SerializedName("title") val title: String,
+    @SerializedName("id") val id: String?,
+    @SerializedName("title") val title: String?,
     @SerializedName("date") val date: String?,
     @SerializedName("country") val country: String?,
     @SerializedName("status") val status: String?,
@@ -57,13 +58,16 @@ data class Relation(
 )
 
 data class Media(
-    @SerializedName("position") val position: Int?, // Añadido para el número de disco
-    @SerializedName("track") val track: List<Track>?
+    @SerializedName("position") val position: Int?,
+    @SerializedName("tracks") val tracks: List<Track>?,
+    @SerializedName("format") val format: String?
 )
 
 data class Track(
     @SerializedName("id") val id: String?,
     @SerializedName("title") val title: String?,
     @SerializedName("number") val number: String?,
-    @SerializedName("recording") val recording: Recording?
+    @SerializedName("recording") var recording: Recording?,
+    @SerializedName("length") val length: Long?,
+    @SerializedName("position") val position: Int?,
 )
