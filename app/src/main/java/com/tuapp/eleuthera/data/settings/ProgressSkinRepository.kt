@@ -49,6 +49,7 @@ data class LoadedSkin(
     val thumb: ImageBitmap?,
     val played: ImageBitmap?,
     val remaining: ImageBitmap?,
+    val end: ImageBitmap?,
 )
 
 @Serializable
@@ -111,6 +112,10 @@ class ProgressSkinRepository @Inject constructor(@ApplicationContext private val
 
     suspend fun setSpin(id: String, spin: Boolean) = editSkin(id) { it.copy(spinThumb = spin) }
 
+    suspend fun setSideColor(id: String, color: Int) = editSkin(id) { it.copy(sideColor = color) }
+
+    suspend fun setCenterColor(id: String, color: Int) = editSkin(id) { it.copy(centerColor = color) }
+
     // ---- Imágenes ----
 
     /**
@@ -160,9 +165,13 @@ class ProgressSkinRepository @Inject constructor(@ApplicationContext private val
 
     private fun validate(slot: SkinSlot, w: Int, h: Int) {
         when (slot) {
-            SkinSlot.THUMB -> {
+            SkinSlot.THUMB, -> {
                 require(abs(w - h) <= maxOf(w, h) / 10) { "El indicador debe ser cuadrado." }
                 require(w in 64..512) { "El indicador debe medir entre 64 y 512 px de lado." }
+            }
+            SkinSlot.END -> {
+                require(abs(w - h) <= maxOf(w, h) / 10) { "La imagen final debe ser cuadrada." }
+                require(w in 64..512) { "La imagen final debe medir entre 64 y 512 px de lado." }
             }
             SkinSlot.PLAYED, SkinSlot.REMAINING -> {
                 require(w >= h) { "Las imágenes de las barras deben ser horizontales." }
@@ -174,7 +183,7 @@ class ProgressSkinRepository @Inject constructor(@ApplicationContext private val
     /** Reduce a un tamaño razonable para dibujar sin gastar memoria. */
     private fun downscale(src: Bitmap, slot: SkinSlot): Bitmap {
         val scale = when (slot) {
-            SkinSlot.THUMB -> 256f / src.width
+            SkinSlot.THUMB, SkinSlot.END -> 256f / src.width
             else -> 2048f / src.width
         }
         if (scale >= 1f) return src
@@ -185,7 +194,7 @@ class ProgressSkinRepository @Inject constructor(@ApplicationContext private val
 
     private fun decode(skin: ProgressSkin): LoadedSkin {
         fun img(path: String?) = path?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() }
-        return LoadedSkin(skin, img(skin.thumb), img(skin.played), img(skin.remaining))
+        return LoadedSkin(skin, img(skin.thumb), img(skin.played), img(skin.remaining), img(skin.end))
     }
 
     // ---- Persistencia ----

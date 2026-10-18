@@ -276,8 +276,27 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 ?: skin?.remaining?.takeIf { File(it).exists() }?.let { BitmapFactory.decodeFile(it) }
             val thumbBmp = loadedSkin?.thumb?.asAndroidBitmap()
                 ?: skin?.thumb?.takeIf { File(it).exists() }?.let { BitmapFactory.decodeFile(it) }
+            val endBmp = loadedSkin?.end?.asAndroidBitmap()
+                ?: skin?.end?.takeIf { File(it).exists() }?.let { BitmapFactory.decodeFile(it) }
 
-            if (mode == TrackMode.REVEAL && playedBmp != null) {
+            if (mode == TrackMode.CHASE) {
+                val sidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = skin?.sideColor ?: themeConfig.primary
+                }
+                canvas.drawRoundRect(RectF(0f, barTop, widthPx.toFloat(), barBottom), radius, radius, sidePaint)
+
+                val middleHeight = barHeight * 0.42f
+                val middleTop = (heightPx - middleHeight) / 2f
+                val middleBottom = middleTop + middleHeight
+                paint.color = themeConfig.secondary.takeIf { it != 0 } ?: 0x33FFFFFF.toInt()
+                canvas.drawRect(0f, middleTop, widthPx.toFloat(), middleBottom, paint)
+
+                paint.color = skin?.centerColor ?: themeConfig.primary
+                canvas.save()
+                canvas.clipRect(0f, middleTop, splitX, middleBottom)
+                canvas.drawRect(0f, middleTop, widthPx.toFloat(), middleBottom, paint)
+                canvas.restore()
+            } else if (mode == TrackMode.REVEAL && playedBmp != null) {
                 // Modo REVEAL: una sola imagen a todo lo ancho
                 val paintDesat = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     alpha = 90
@@ -340,6 +359,17 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 canvas.drawCircle(cx, heightPx / 2f, thumbRadius, paint)
             }
 
+            if (mode == TrackMode.CHASE && endBmp != null) {
+                val endSize = (28 * density).coerceAtMost(heightPx.toFloat())
+                val endRect = RectF(
+                    widthPx - endSize,
+                    (heightPx - endSize) / 2f,
+                    widthPx.toFloat(),
+                    (heightPx + endSize) / 2f,
+                )
+                canvas.drawBitmap(endBmp, null, endRect, paint)
+            }
+
             return bitmap
         }
 
@@ -354,7 +384,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
         ) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
             when (mode) {
-                TrackMode.STRETCH, TrackMode.REVEAL -> {
+                TrackMode.STRETCH, TrackMode.REVEAL, TrackMode.CHASE -> {
                     val dest = RectF(left, top, right, bottom)
                     canvas.drawBitmap(src, null, dest, paint)
                 }
