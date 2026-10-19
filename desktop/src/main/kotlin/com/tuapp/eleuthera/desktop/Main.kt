@@ -89,7 +89,8 @@ fun main() {
             state = rememberWindowState(width = 1200.dp, height = 800.dp),
         ) {
             val theme by AppGraph.themeRepository.config.collectAsState(ThemeConfig())
-            AppTheme(theme) { App() }
+            // CrispText: letra suavizada como ClearType en Windows.
+            AppTheme(theme) { CrispText { App() } }
         }
     }
 }

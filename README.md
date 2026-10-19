@@ -12,7 +12,8 @@
 <p align="center">
   <a href="https://github.com/ErMichoss/Eleuthera/releases/latest"><img src="https://img.shields.io/github/v/release/ErMichoss/Eleuthera?label=descargar&style=for-the-badge" alt="Última versión"></a>
   <img src="https://img.shields.io/badge/Android-10%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android 10 o superior">
-  <img src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin y Jetpack Compose">
+  <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux%20%C2%B7%20macOS-escritorio-5865F2?style=for-the-badge" alt="Windows, Linux y macOS">
+  <img src="https://img.shields.io/badge/Kotlin-Compose%20Multiplatform-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white" alt="Kotlin y Compose Multiplatform">
 </p>
 
 > *Eleuthera* (ἐλευθέρα) significa «libre» en griego antiguo.
@@ -306,6 +307,8 @@ La app comprueba que la sesión está iniciada y borra después las cookies del 
 
 Si Google muestra *«Este navegador o aplicación puede no ser seguro»*, usa la opción B.
 
+**En el ordenador** no hay navegador interno: en **Ajustes > Cuenta de YouTube > Desde tu navegador** elige el navegador en el que tienes la sesión iniciada (Firefox, Chrome, Edge, Brave…) y pulsa **Traer sesión**. Se guardan solo las cookies de YouTube y Google. En Windows, Chrome y Edge suelen bloquearlo: cierra el navegador del todo o usa Firefox.
+
 ### Opción B: importar un archivo
 
 1. En el ordenador, instala la extensión **Get cookies.txt LOCALLY** (Chrome) o **cookies.txt** (Firefox).
@@ -314,7 +317,7 @@ Si Google muestra *«Este navegador o aplicación puede no ser seguro»*, usa la
 4. En esa pestaña, ve a `https://www.youtube.com/robots.txt`.
 5. Exporta las cookies de `youtube.com` con la extensión.
 6. **Cierra la ventana de incógnito** sin cerrar sesión, y no vuelvas a usar esa sesión en el navegador.
-7. Pasa el archivo al móvil y, en **Ajustes > Cuenta de YouTube**, pulsa **Importar archivo (.txt o .json)**.
+7. Pasa el archivo al móvil y, en **Ajustes > Cuenta de YouTube**, pulsa **Importar archivo (.txt o .json)**. En el ordenador, usa **Desde un archivo** en la misma página.
 
 Se admiten el formato Netscape (`cookies.txt`) y el JSON de extensiones como Cookie-Editor o EditThisCookie.
 
@@ -329,6 +332,8 @@ Las cookies se guardan en el almacenamiento privado de la app: ninguna otra app 
 | Canciones descargadas | `Música/Eleuthera/` | No |
 | Canciones de una playlist de YouTube | `Música/Eleuthera/<nombre de la playlist>/` | No |
 | Playlists, portadas, ajustes y cookies | Almacenamiento privado de la app | Sí |
+| **Escritorio:** canciones descargadas | `~/Música/Eleuthera/` (`Music/Eleuthera` en tu carpeta de usuario) | No |
+| **Escritorio:** playlists, ajustes, cookies, yt-dlp y ffmpeg | Windows: `%APPDATA%\Eleuthera` · macOS: `~/Library/Application Support/Eleuthera` · Linux: `~/.local/share/eleuthera` | No (bórrala a mano si quieres empezar de cero) |
 
 Los archivos de música son normales: puedes copiarlos, abrirlos con otros reproductores o pasarlos al ordenador.
 
@@ -384,39 +389,47 @@ Android limita el tiempo en segundo plano de algunas apps. Desactiva la optimiza
 
 ### Tecnología
 
-| Área | Librerías |
-|---|---|
-| Lenguaje e interfaz | Kotlin, Jetpack Compose, Material 3 |
-| Arquitectura | MVVM con capas `domain` / `data` / `ui`, Hilt para dependencias |
-| Descarga | [youtubedl-android](https://github.com/yausername/youtubedl-android) (yt-dlp + FFmpeg + QuickJS) |
-| Segundo plano | WorkManager |
-| Reproducción | Media3 (ExoPlayer + MediaSessionService) |
-| Datos | Room (playlists), DataStore (ajustes), MediaStore (archivos) |
-| Otros | Coil, kotlinx-serialization, [Reorderable](https://github.com/Calvin-LL/Reorderable) |
+| Área | Común (`shared`) | Android (`app`) | Escritorio (`desktop`) |
+|---|---|---|---|
+| Lenguaje e interfaz | Kotlin 2.2, Compose Multiplatform 1.8, Material 3 | Jetpack Compose | Compose Desktop |
+| Arquitectura | Capas `domain` / `data` / `ui`; lógica de cada pantalla en *controllers* comunes | ViewModels + Hilt | `AppGraph` (montaje a mano) |
+| Descarga | — | [youtubedl-android](https://github.com/yausername/youtubedl-android) (yt-dlp + FFmpeg + Python) | yt-dlp, ffmpeg y Deno, que la app descarga sola |
+| Segundo plano | — | WorkManager | Corrutinas (cola en memoria) |
+| Reproducción | Interfaz `MusicPlayer` (misma cola en las dos) | Media3 (ExoPlayer + MediaSessionService) | Motor propio: ffmpeg → `javax.sound` |
+| Datos | Room 2.7 (KMP), DataStore, kotlinx-serialization | MediaStore + carpetas (SAF) | Carpetas del disco, SQLite incluido |
+| Otros | [Reorderable](https://github.com/Calvin-LL/Reorderable), MusicBrainz | Coil, widget | Instaladores .msi / .deb / .dmg |
 
 ### Estructura
 
+Tres módulos de Gradle. Si algo es igual en el móvil y en el ordenador, va en `shared/src/commonMain`; solo lo que depende de la plataforma baja a `androidMain` / `desktopMain` o a los módulos `app` / `desktop`.
+
 ```text
-app/src/main/java/com/tuapp/eleuthera/
-├── domain/model/     Modelos (Track, Playlist, ThemeConfig…)
-├── data/
-│   ├── youtube/      Motor yt-dlp
-│   ├── download/     Descargas (WorkManager)
-│   ├── importer/     Importación de listas y emparejado
-│   ├── library/      MediaStore
-│   ├── playlist/     Repositorio de playlists
-│   ├── db/           Room
-│   └── settings/     DataStore, cookies
-├── playback/         Servicio y controlador del reproductor
-├── di/               Módulos de Hilt
-└── ui/               Pantallas Compose (search, library, playlists, player, settings…)
+Eleuthera/
+├── shared/                      Código común (Kotlin Multiplatform)
+│   └── src/
+│       ├── commonMain/          Igual en Android y escritorio
+│       │   ├── domain/model/    Modelos (Track, Playlist, ThemeConfig, ProgressSkin…)
+│       │   ├── data/            db (Room), settings (DataStore), importer, playlist,
+│       │   │                    musicbrainz, youtube
+│       │   ├── playback/        MusicPlayer: la interfaz del reproductor
+│       │   └── ui/              Pantallas y su lógica: search, library, playlist, player,
+│       │                        settings, musicbrainz, common, theme
+│       ├── androidMain/         Piezas comunes hechas con APIs de Android
+│       └── desktopMain/         Motor de escritorio: yt-dlp, ffmpeg, descargas, biblioteca,
+│                                reproductor, cookies, actualizaciones
+├── app/                         Android: MainActivity, Hilt, WorkManager, MediaStore,
+│                                Media3, widget y envoltorios de las pantallas comunes
+├── desktop/                     Escritorio: main(), ventana, AppGraph, Ajustes propios,
+│                                iconos e instaladores
+├── docs/                        Guía del código (LaTeX + PDF)
+└── .github/workflows/           Release: APK + instaladores al subir una etiqueta
 ```
 
 > 📘 **Guía del código:** [`docs/estructura.pdf`](docs/estructura.pdf) explica cómo está organizado el proyecto, qué hace cada archivo y dónde tocar para cambiar cada cosa (fuente LaTeX en `docs/estructura.tex`).
 
 ### Compilar
 
-El proyecto tiene tres módulos: `app` (Android), `desktop` (Windows, Linux y macOS) y `shared` (lo común: modelos, datos y pantallas, con Kotlin Multiplatform). Gradle usa el JDK 25.
+Gradle usa el JDK 25 (lo descarga solo si no lo tienes).
 
 **Android:** abre el proyecto con Android Studio y pulsa ▶ con un móvil conectado (mejor que el emulador).
 
