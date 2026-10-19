@@ -98,6 +98,10 @@ abstract class ProgressSkinStore(private val dir: File) {
 
     suspend fun setSpin(id: String, spin: Boolean) = editSkin(id) { it.copy(spinThumb = spin) }
 
+    suspend fun setSideColor(id: String, color: Int) = editSkin(id) { it.copy(sideColor = color) }
+
+    suspend fun setCenterColor(id: String, color: Int) = editSkin(id) { it.copy(centerColor = color) }
+
     // ---- Imágenes ----
 
     /**
@@ -116,7 +120,8 @@ abstract class ProgressSkinStore(private val dir: File) {
                 val skinDir = File(dir, id).apply { mkdirs() }
                 // Nombre nuevo en cada cambio para no mostrar la imagen anterior desde caché.
                 val file = File(skinDir, "${slot.fileName}_${System.currentTimeMillis()}.png")
-                writePng(image, if (slot == SkinSlot.THUMB) 256 else 2048, file)
+                val square = slot == SkinSlot.THUMB || slot == SkinSlot.END
+                writePng(image, if (square) 256 else 2048, file)
 
                 val old = store.value.skins.firstOrNull { it.id == id }?.path(slot)
                 editSkin(id) { it.withPath(slot, file.absolutePath) }
@@ -137,6 +142,10 @@ abstract class ProgressSkinStore(private val dir: File) {
                 require(abs(w - h) <= maxOf(w, h) / 10) { "El indicador debe ser cuadrado." }
                 require(w in 64..512) { "El indicador debe medir entre 64 y 512 px de lado." }
             }
+            SkinSlot.END -> {
+                require(abs(w - h) <= maxOf(w, h) / 10) { "La imagen final debe ser cuadrada." }
+                require(w in 64..512) { "La imagen final debe medir entre 64 y 512 px de lado." }
+            }
             SkinSlot.PLAYED, SkinSlot.REMAINING -> {
                 require(w >= h) { "Las imágenes de las barras deben ser horizontales." }
                 require(h in 16..64) { "Las barras deben medir entre 16 y 64 px de alto." }
@@ -146,7 +155,7 @@ abstract class ProgressSkinStore(private val dir: File) {
 
     private fun decode(skin: ProgressSkin): LoadedSkin {
         fun img(path: String?) = path?.let { runCatching { decodeImage(File(it).readBytes()) }.getOrNull() }
-        return LoadedSkin(skin, img(skin.thumb), img(skin.played), img(skin.remaining))
+        return LoadedSkin(skin, img(skin.thumb), img(skin.played), img(skin.remaining), img(skin.end))
     }
 
     // ---- Persistencia ----

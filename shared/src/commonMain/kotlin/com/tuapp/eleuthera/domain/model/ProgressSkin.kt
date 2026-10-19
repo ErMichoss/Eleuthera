@@ -1,6 +1,7 @@
 package com.tuapp.eleuthera.domain.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 
 /** Cómo se dibujan las imágenes de las barras. */
 @Serializable
@@ -22,13 +23,20 @@ enum class TrackMode(val label: String, val description: String) {
         "Revelar",
         "Revelar usa una sola imagen de barra completa: se ve a color lo escuchado y apagado lo pendiente.",
     ),
+    /** Una imagen en el puntero busca a una al final mientras que la barra tiene colores laterales e interior*/
+    @SerialName("ACCENTED")
+    CHASE(
+        "Perseguir",
+        "Perseguir usa los colores elegidos en los bordes y el centro de la barra, con una imagen fija al final.",
+    ),
 }
 
-/** Las tres imágenes que se pueden personalizar. */
+/** Las cuatro imágenes que se pueden personalizar. */
 enum class SkinSlot(val label: String, val fileName: String) {
     THUMB("Indicador", "thumb"),
     PLAYED("Parte reproducida", "played"),
     REMAINING("Parte pendiente", "remaining"),
+    END("Imagen final", "end"),
 }
 
 /**
@@ -42,19 +50,24 @@ data class ProgressSkin(
     val thumb: String? = null,
     val played: String? = null,
     val remaining: String? = null,
+    val end: String? = null,
     val mode: TrackMode = TrackMode.TILE,
     /** Girar el indicador mientras suena la música. */
     val spinThumb: Boolean = false,
+    val sideColor: Int? = null,
+    val centerColor: Int? = null,
 ) {
     fun path(slot: SkinSlot): String? = when (slot) {
         SkinSlot.THUMB -> thumb
         SkinSlot.PLAYED -> played
         SkinSlot.REMAINING -> remaining
+        SkinSlot.END -> end
     }
 
     fun withPath(slot: SkinSlot, path: String?): ProgressSkin = when (slot) {
         SkinSlot.THUMB -> copy(thumb = path)
         SkinSlot.PLAYED -> copy(played = path)
         SkinSlot.REMAINING -> copy(remaining = path)
+        SkinSlot.END -> copy(end = path)
     }
 }

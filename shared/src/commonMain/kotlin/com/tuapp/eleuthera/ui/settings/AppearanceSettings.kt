@@ -95,7 +95,7 @@ internal val presets = listOf(
     ),
 )
 
-private val accentSwatches = listOf(
+internal val accentSwatches = listOf(
     0xFF1DB954, 0xFF2E6BE6, 0xFF4FC3F7, 0xFF03DAC6, 0xFFBB86FC, 0xFFE91E63,
     0xFFF44336, 0xFFFF7043, 0xFFFFB300, 0xFFFFD166, 0xFF8D5A2B, 0xFF9E9E9E,
 ).map(::argb)
@@ -264,7 +264,7 @@ private fun Preview() {
 }
 
 @Composable
-private fun ColorRow(title: String, selected: Int, swatches: List<Int>, onPick: (Int) -> Unit) {
+internal fun ColorRow(title: String, selected: Int, swatches: List<Int>, onPick: (Int) -> Unit) {
     var picking by remember { mutableStateOf(false) }
     if (picking) ColorPickerDialog(selected, onPick, onDismiss = { picking = false })
 

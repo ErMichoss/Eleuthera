@@ -20,4 +20,6 @@ data class LoadedSkin(
     val thumb: ImageBitmap?,
     val played: ImageBitmap?,
     val remaining: ImageBitmap?,
+    /** Imagen fija al final de la barra (modo Perseguir). */
+    val end: ImageBitmap? = null,
 )

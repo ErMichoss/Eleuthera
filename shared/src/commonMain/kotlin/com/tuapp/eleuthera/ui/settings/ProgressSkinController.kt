@@ -37,6 +37,8 @@ class ProgressSkinController(private val scope: CoroutineScope, private val stor
     fun delete(id: String) = launch { store.delete(id) }
     fun setMode(id: String, mode: TrackMode) = launch { store.setMode(id, mode) }
     fun setSpin(id: String, spin: Boolean) = launch { store.setSpin(id, spin) }
+    fun setSideColor(id: String, color: Int) = launch { store.setSideColor(id, color) }
+    fun setCenterColor(id: String, color: Int) = launch { store.setCenterColor(id, color) }
     fun clearImage(id: String, slot: SkinSlot) = launch { store.clearImage(id, slot) }
 
     fun setImage(id: String, slot: SkinSlot, image: PlatformUri) = launch {
