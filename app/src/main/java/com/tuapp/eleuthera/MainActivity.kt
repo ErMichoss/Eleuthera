@@ -61,6 +61,7 @@ import com.tuapp.eleuthera.ui.player.TrimEditorScreen
 import com.tuapp.eleuthera.ui.player.MiniPlayer
 import com.tuapp.eleuthera.ui.player.NowPlayingScreen
 import com.tuapp.eleuthera.ui.player.PlayerViewModel
+import com.tuapp.eleuthera.ui.player.LyricsCard
 import com.tuapp.eleuthera.ui.playlists.AddToPlaylistDialog
 import com.tuapp.eleuthera.ui.playlists.PlaylistTarget
 import com.tuapp.eleuthera.ui.playlists.PlaylistsScreen
@@ -183,6 +184,7 @@ private fun AppRoot(
 
     // Qué canción suena: lo leen las listas para resaltarla.
     val nowPlaying by playerVm.nowPlaying.collectAsStateWithLifecycle()
+    val lyrics by playerVm.lyrics.collectAsStateWithLifecycle()
 
     // Las pantallas comunes (:shared) piden a la plataforma los avisos y las carátulas.
     val context = LocalContext.current
@@ -269,6 +271,11 @@ private fun AppRoot(
                     vm = playerVm,
                     onClose = { showPlayer = false },
                     modifier = Modifier.safeDrawingPadding(),
+                    extraContent = {
+                        if (nowPlaying.mediaId != null) {
+                            LyricsCard(lyrics.text, lyrics.loading, lyrics.error)
+                        }
+                    },
                 )
             }
         }

@@ -277,6 +277,7 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
         }
         _state.value = PlayerState(
             mediaId = now?.track?.id?.toString(),
+            mediaUri = now?.track?.uri?.toString(),
             title = now?.track?.title.orEmpty(),
             artist = now?.track?.artist.orEmpty(),
             artwork = artwork,

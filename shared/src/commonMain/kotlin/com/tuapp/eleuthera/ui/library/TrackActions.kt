@@ -11,6 +11,8 @@ data class TrackActions(
     val onPlayNext: (Track) -> Unit = {},
     val onAddToQueue: (Track) -> Unit = {},
     val onAddToPlaylist: (Track) -> Unit = {},
+    /** Recorte disponible solo en plataformas que implementan el editor de audio. */
+    val onTrim: ((Track) -> Unit)? = null,
     /** Varias canciones (una playlist, un álbum...) justo después de la actual. */
     val onPlayNextAll: (List<Track>) -> Unit = {},
     /** Varias canciones al final de la cola del usuario. */
