@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // app/build.gradle.kts
 plugins {
@@ -31,15 +32,17 @@ android {
         // yt-dlp, Python y FFmpeg son binarios nativos: limita las ABI para no inflar el APK.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
 
+        // Claves de MusicBrainz: en local, de local.properties; en GitHub Actions, de los
+        // secretos del repositorio. Nunca se escriben en el código.
         buildConfigField(
             "String",
             "MUSICBRAINZ_CLIENT_ID",
-            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_ID") ?: ""}\""
+            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_ID") ?: System.getenv("MUSICBRAINZ_CLIENT_ID") ?: ""}\""
         )
         buildConfigField(
             "String",
             "MUSICBRAINZ_CLIENT_SECRET",
-            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_SECRET") ?: ""}\""
+            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_SECRET") ?: System.getenv("MUSICBRAINZ_CLIENT_SECRET") ?: ""}\""
         )
 
         buildFeatures {
@@ -49,7 +52,8 @@ android {
 
     // Firma de release: solo se usa si existen las variables de entorno (las pone GitHub
     // Actions a partir de los secretos del repositorio). El almacén de claves nunca va al repo.
-    val ciKeystore = System.getenv("SIGNING_STORE_FILE")
+    // (En una ejecución manual del workflow llega vacía: entonces el APK sale sin firmar.)
+    val ciKeystore = System.getenv("SIGNING_STORE_FILE")?.takeIf { it.isNotBlank() }
     signingConfigs {
         if (ciKeystore != null) {
             create("release") {
@@ -77,14 +81,21 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
 
     // Obligatorio: la biblioteca ejecuta los .so como procesos, deben extraerse al disco.
     packaging { jniLibs { useLegacyPackaging = true } }
 }
 
+// Antes era kotlinOptions { jvmTarget = "17" } dentro de android { }: Kotlin 2.2 lo prohíbe.
+kotlin {
+    compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+}
+
 dependencies {
+    // Código común con la versión de escritorio (modelos, tema, pantallas...)
+    implementation(project(":shared"))
+
     // Motor de descarga
     val ytdl = "0.18.1"
     implementation("io.github.junkfood02.youtubedl-android:library:$ytdl")
@@ -100,8 +111,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 
     // Hilt
-    implementation("com.google.dagger:hilt-android:2.52")
-    ksp("com.google.dagger:hilt-compiler:2.52")
+    implementation("com.google.dagger:hilt-android:2.57.2")
+    ksp("com.google.dagger:hilt-compiler:2.57.2")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
     // Descargas en segundo plano
@@ -115,14 +126,10 @@ dependencies {
     implementation("androidx.media3:media3-session:$media3")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-    // Base de datos (playlists)
-    val room = "2.6.1"
-    implementation("androidx.room:room-runtime:$room")
-    implementation("androidx.room:room-ktx:$room")
-    ksp("androidx.room:room-compiler:$room")
+    // Base de datos (playlists): está en :shared (Room multiplataforma).
 
     // Ajustes (tema)
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
 
     // Listas reordenables arrastrando
     implementation("sh.calvin.reorderable:reorderable:2.4.3")
@@ -131,10 +138,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
-    //Llamadas de API
-    implementation("com.squareup.retrofit2:retrofit:3.0.0")
-    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
-
-    //OkHttp3 logger
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    // MusicBrainz ya no usa Retrofit ni OkHttp: su cliente está en :shared (HttpURLConnection).
 }

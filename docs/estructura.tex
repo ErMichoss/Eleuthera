@@ -1,0 +1,1177 @@
+% =============================================================================
+%  Eleuthera — Guía del código: cómo está organizado el proyecto y dónde está todo
+%
+%  Compilar (desde la carpeta docs/):
+%      latexmk -xelatex estructura.tex
+%  o, sin latexmk:
+%      xelatex estructura.tex && xelatex estructura.tex
+%
+%  Necesita XeLaTeX (TeX Live, MiKTeX u Overleaf con el compilador "XeLaTeX").
+%  Usa la fuente Inter si está instalada; si no, TeX Gyre Heros / Latin Modern.
+% =============================================================================
+\documentclass[11pt,a4paper,oneside]{report}
+
+% ---------- Idioma y fuentes ----------
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{spanish}
+\IfFontExistsTF{Inter}{%
+  \setmainfont{Inter}[Scale=0.92]
+  \setsansfont{Inter}[Scale=0.92]
+}{%
+  \IfFontExistsTF{TeX Gyre Heros}{\setmainfont{TeX Gyre Heros}}{}%
+}
+\IfFontExistsTF{DejaVu Sans Mono}{%
+  \setmonofont{DejaVu Sans Mono}[Scale=0.80]
+}{}
+
+% ---------- Página ----------
+\usepackage[a4paper,top=2.4cm,bottom=2.4cm,left=2.3cm,right=2.3cm,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,shapes.geometric,calc}
+\usepackage{xurl}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fvextra}
+
+% ---------- Colores (los del icono y del tema de la app) ----------
+\definecolor{arena}{HTML}{BDA26B}     % fondo del icono
+\definecolor{arenaosc}{HTML}{8A7140}
+\definecolor{tinta}{HTML}{1F2328}
+\definecolor{gris}{HTML}{6B7280}
+\definecolor{grisclaro}{HTML}{F3F1EC}
+\definecolor{verde}{HTML}{1DB954}     % primario por defecto de la app
+\definecolor{azul}{HTML}{2E6BE6}
+\definecolor{rojo}{HTML}{C2410C}
+\definecolor{morado}{HTML}{7C3AED}
+
+\color{tinta}
+\hypersetup{colorlinks=true,linkcolor=arenaosc,urlcolor=azul,citecolor=arenaosc}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlist{itemsep=0.15em,topsep=0.3em}
+\renewcommand{\arraystretch}{1.25}
+
+% ---------- Títulos ----------
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{tinta}}
+  {\color{arena}\fontsize{46}{46}\selectfont\thechapter}
+  {0.2em}
+  {\Huge}
+  [\vspace{0.3em}{\color{arena}\titlerule[1.5pt]}]
+\titlespacing*{\chapter}{0pt}{-1.2em}{1.4em}
+\titleformat{\section}{\normalfont\Large\bfseries\color{tinta}}{\color{arena}\thesection}{0.8em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\color{tinta}}{\color{arenaosc}\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\color{arenaosc}}{}{0em}{}
+
+% ---------- Cabecera y pie ----------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gris}Eleuthera · Guía del código}
+\fancyhead[R]{\small\color{gris}\nouppercase{\leftmark}}
+\fancyfoot[C]{\small\color{gris}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\color{arena}\hrule width\headwidth height\headrulewidth}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\small\color{gris}\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+% ---------- Comandos propios ----------
+% Ruta o nombre de archivo (corta la línea donde haga falta)
+\newcommand{\ruta}[1]{{\small\path{#1}}}
+% Código en línea
+\newcommand{\cod}[1]{\texttt{\small #1}}
+% Etiquetas de plataforma
+\newcommand{\etiqueta}[2]{\tikz[baseline=(t.base)]\node[fill=#1,text=white,rounded corners=2pt,inner sep=2pt,font=\scriptsize\bfseries](t){#2};}
+\newcommand{\comun}{\etiqueta{verde}{COMÚN}}
+\newcommand{\android}{\etiqueta{azul}{ANDROID}}
+\newcommand{\escritorio}{\etiqueta{morado}{ESCRITORIO}}
+
+% Recuadros
+\newtcolorbox{nota}[1][Nota]{enhanced,breakable,colback=grisclaro,colframe=arena,
+  boxrule=0pt,leftrule=3pt,arc=2pt,left=8pt,right=8pt,top=5pt,bottom=5pt,
+  fonttitle=\bfseries\small,coltitle=arenaosc,title=#1,attach title to upper={\par\vspace{2pt}}}
+\newtcolorbox{aviso}[1][Cuidado]{enhanced,breakable,colback=rojo!6,colframe=rojo,
+  boxrule=0pt,leftrule=3pt,arc=2pt,left=8pt,right=8pt,top=5pt,bottom=5pt,
+  fonttitle=\bfseries\small,coltitle=rojo,title=#1,attach title to upper={\par\vspace{2pt}}}
+\newtcolorbox{arbol}{enhanced,breakable,colback=grisclaro,colframe=grisclaro,arc=2pt,
+  left=8pt,right=8pt,top=6pt,bottom=6pt}
+
+% Bloques de texto literal (árboles de carpetas, comandos)
+\DefineVerbatimEnvironment{literal}{Verbatim}{fontsize=\footnotesize,breaklines=true,breakanywhere=true}
+
+% Tabla de archivos: Archivo | Qué hace
+\newenvironment{archivos}{%
+  \small
+  \begin{longtable}{>{\raggedright\arraybackslash}p{5.3cm} >{\raggedright\arraybackslash}p{10.6cm}}
+  \toprule
+  \textbf{Archivo} & \textbf{Qué hace} \\ \midrule \endhead
+  \bottomrule \endfoot
+}{\end{longtable}}
+
+% Tabla genérica de dos columnas con cabeceras propias
+\newenvironment{dosCol}[2]{%
+  \small
+  \begin{longtable}{>{\raggedright\arraybackslash}p{5.3cm} >{\raggedright\arraybackslash}p{10.6cm}}
+  \toprule
+  \textbf{#1} & \textbf{#2} \\ \midrule \endhead
+  \bottomrule \endfoot
+}{\end{longtable}}
+
+% Estilos TikZ
+\tikzset{
+  caja/.style={draw=#1,fill=#1!8,rounded corners=4pt,line width=0.8pt,align=center,
+    inner sep=6pt,font=\small},
+  caja/.default=arena,
+  flecha/.style={-{Stealth[length=2.6mm]},line width=0.8pt,color=gris},
+  etq/.style={font=\scriptsize\color{gris},align=center},
+}
+
+% =============================================================================
+\begin{document}
+
+% ---------------------------------------------------------------- Portada
+\begin{titlepage}
+  \thispagestyle{empty}
+  \begin{tikzpicture}[remember picture,overlay]
+    \fill[arena] (current page.north west) rectangle ([yshift=-9.5cm]current page.north east);
+    \fill[arenaosc] ([yshift=-9.5cm]current page.north west) rectangle ([yshift=-9.8cm]current page.north east);
+    \node at ([yshift=-5.2cm]current page.north) {\includegraphics[width=5.2cm]{img/icon.png}};
+  \end{tikzpicture}
+  \vspace*{9.2cm}
+
+  {\fontsize{40}{44}\selectfont\bfseries Eleuthera\par}
+  \vspace{0.4em}
+  {\LARGE\color{arenaosc} Guía del código\par}
+  \vspace{1.2em}
+  {\large Cómo está organizado el proyecto, qué hace cada archivo\\ y dónde tocar para cambiar cada cosa.\par}
+
+  \vfill
+  \begin{tabular}{@{}l l@{}}
+    \color{gris}Plataformas & Android 10+ · Windows · Linux · macOS \\
+    \color{gris}Tecnología  & Kotlin 2.2 · Kotlin Multiplatform · Compose Multiplatform 1.8 \\
+    \color{gris}Repositorio & \url{https://github.com/ErMichoss/Eleuthera} \\
+    \color{gris}Estado      & rama \cod{Dev-DesktopVersion}, octubre de 2026 \\
+  \end{tabular}
+
+  \vspace{1.5em}
+  {\small\color{gris} \emph{Eleuthera} (ἐλευθέρα) significa «libre» en griego antiguo.\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+% =============================================================================
+\chapter{Visión general}
+
+\section{Qué es Eleuthera}
+
+Eleuthera descarga música de YouTube, la organiza y la reproduce sin conexión. Además
+importa listas exportadas de Spotify, Qobuz, Apple Music y otros servicios: lee la lista
+de canciones, busca cada una en YouTube, elige la mejor versión y la descarga dentro de una
+playlist con el mismo nombre y orden.
+
+Existe en dos «sabores» que comparten la mayor parte del código:
+
+\begin{itemize}
+  \item \android{} una app con navegación inferior, descargas en segundo plano
+        (WorkManager), reproductor con notificación (Media3) y widget.
+  \item \escritorio{} una app para Windows, Linux y macOS con barra lateral, que descarga
+        e instala sola yt-dlp, ffmpeg y Deno, y reproduce con un motor propio basado en ffmpeg.
+\end{itemize}
+
+\section{Los tres módulos}
+
+El proyecto Gradle tiene tres módulos (ver \ruta{settings.gradle.kts}):
+
+\begin{center}
+\begin{tikzpicture}[node distance=1.2cm and 1.6cm]
+  \node[caja=azul,minimum width=4.2cm,minimum height=1.6cm] (app)
+    {\textbf{:app}\\[-1pt]\footnotesize Android\\[-2pt]\footnotesize Hilt · WorkManager · Media3};
+  \node[caja=morado,minimum width=4.2cm,minimum height=1.6cm,right=2.4cm of app] (desk)
+    {\textbf{:desktop}\\[-1pt]\footnotesize Windows · Linux · macOS\\[-2pt]\footnotesize Compose Desktop};
+  \node[caja=verde,minimum width=10.6cm,minimum height=2.6cm,below=1.5cm of $(app)!0.5!(desk)$] (shared) {};
+  \node[font=\small\bfseries,anchor=north] at (shared.north) {:shared \normalfont\footnotesize(Kotlin Multiplatform)};
+  \node[caja=verde,fill=white,minimum width=3.1cm,anchor=south west] (am) at ([xshift=0.25cm,yshift=0.25cm]shared.south west)
+    {\footnotesize androidMain};
+  \node[caja=verde,fill=verde!25,minimum width=3.6cm,right=0.2cm of am] (cm) {\footnotesize\textbf{commonMain}};
+  \node[caja=verde,fill=white,minimum width=3.1cm,right=0.2cm of cm] (dm) {\footnotesize desktopMain};
+  \draw[flecha] (app) -- node[etq,left]{depende de} (app |- shared.north);
+  \draw[flecha] (desk) -- node[etq,right]{depende de} (desk |- shared.north);
+\end{tikzpicture}
+\end{center}
+
+\begin{dosCol}{Módulo}{Qué contiene}
+  \ruta{shared/} \comun & Todo lo que es igual en las dos plataformas: modelos, base de datos,
+  ajustes, lógica de las pantallas (\emph{controllers}) y las propias pantallas Compose. Dentro
+  tiene tres conjuntos de fuentes: \cod{commonMain} (común de verdad), \cod{androidMain} (las
+  piezas comunes que en Android se hacen con APIs de Android) y \cod{desktopMain} (lo mismo en
+  escritorio, más todo el motor de escritorio: yt-dlp, ffmpeg, descargas, biblioteca…). \\
+  \ruta{app/} \android & La app de Android: \cod{Activity}, inyección con Hilt, descargas e
+  importaciones con WorkManager, biblioteca con MediaStore, reproductor Media3, widget, inicio
+  de sesión en YouTube. Sus pantallas son envoltorios finos sobre las de \cod{shared}. \\
+  \ruta{desktop/} \escritorio & El ejecutable de escritorio: \cod{main()}, la ventana, la
+  barra lateral, Ajustes de escritorio, el grafo de dependencias (\cod{AppGraph}) y la
+  configuración de los instaladores (.msi, .deb, .dmg). \\
+\end{dosCol}
+
+\begin{nota}[La regla de oro]
+Si algo se ve o se comporta igual en el móvil y en el ordenador, va en
+\ruta{shared/src/commonMain}. Solo baja a \cod{androidMain}/\cod{desktopMain} (o a los módulos
+\cod{app}/\cod{desktop}) la parte que de verdad depende de la plataforma: abrir un archivo,
+leer una imagen, lanzar un proceso, pedir un permiso…
+\end{nota}
+
+\section{Paquetes}
+
+Todo el código está bajo el paquete \cod{com.tuapp.eleuthera}, organizado por capas igual en
+los tres módulos:
+
+\begin{dosCol}{Paquete}{Qué va ahí}
+  \cod{domain.model} & Modelos puros, sin lógica: \cod{Track}, \cod{Playlist},
+    \cod{RemoteTrack}, \cod{ThemeConfig}, \cod{ProgressSkin}… \\
+  \cod{data.*} & Acceso a datos y servicios: \cod{db} (Room), \cod{settings} (DataStore,
+    cookies, diseños), \cod{youtube} (yt-dlp), \cod{download}, \cod{importer}, \cod{library},
+    \cod{playlist}, \cod{update}, \cod{musicbrainz}, \cod{metadata}. \\
+  \cod{playback} & Reproductor: la interfaz común \cod{MusicPlayer} y sus dos implementaciones. \\
+  \cod{platform} & Lo que abstrae la plataforma: \cod{PlatformUri}, rutas y herramientas de
+    escritorio. \\
+  \cod{ui.*} & Pantallas Compose y su estado: \cod{search}, \cod{library}, \cod{playlist(s)},
+    \cod{player}, \cod{settings}, \cod{musicbrainz}, \cod{common}, \cod{theme}, \cod{platform}. \\
+  \cod{di} & Solo Android: el módulo de Hilt. \\
+  \cod{widget} & Solo Android: el widget de la pantalla de inicio. \\
+  \cod{desktop} & Solo escritorio: \cod{main()}, ventana y pantallas propias. \\
+\end{dosCol}
+
+\begin{aviso}[Ojo con dos nombres parecidos]
+Las pantallas comunes de playlists están en el paquete \cod{ui.playlist} (singular, en
+\cod{shared}) y los envoltorios de Android en \cod{ui.playlists} (plural, en \cod{app}).
+\end{aviso}
+
+% =============================================================================
+\chapter{Árbol de carpetas}
+
+\section{Raíz del repositorio}
+
+\begin{arbol}
+\begin{literal}
+Eleuthera/
+├── .github/workflows/release.yml   CI: APK + instaladores al subir una etiqueta vX.Y.Z
+├── app/                            Módulo Android
+├── shared/                         Módulo común (Kotlin Multiplatform)
+├── desktop/                        Módulo de escritorio
+├── docs/                           Esta documentación (LaTeX + PDF)
+├── gradle/
+│   ├── wrapper/                    Gradle 9.6.0 (gradlew lo descarga solo)
+│   ├── gradle-daemon-jvm.properties  Gradle corre con el JDK 25 (lo descarga si falta)
+│   └── libs.versions.toml          Resto de la plantilla: NO se usa (ver capítulo 11)
+├── build.gradle.kts                Versiones de los plugins (Kotlin, AGP, Compose, KSP, Hilt)
+├── settings.gradle.kts             Módulos :app, :shared, :desktop y repositorios
+├── gradle.properties               Memoria de Gradle, caché de configuración, AndroidX
+├── README.md                       Manual de usuario y guía rápida para desarrolladores
+└── .gitignore                      build/, .gradle/, .kotlin/, local.properties, *.jks, cookies*
+\end{literal}
+\end{arbol}
+
+\section{\texorpdfstring{\cod{shared/}}{shared/}}
+
+\begin{arbol}
+\begin{literal}
+shared/
+├── build.gradle.kts                 Targets androidTarget + jvm("desktop"), Room/KSP, recursos
+└── src/
+    ├── commonMain/
+    │   ├── composeResources/font/   inter, montserrat, nunito, playfair (.ttf variables)
+    │   └── kotlin/com/tuapp/eleuthera/
+    │       ├── domain/model/        Track, Playlist, RemoteTrack, ThemeConfig, ProgressSkin…
+    │       ├── data/
+    │       │   ├── db/              AppDatabase (Room v4), entidades y DAOs
+    │       │   ├── importer/        ImportFileParser (CSV/TXT), TrackMatcher
+    │       │   ├── musicbrainz/     MusicBrainzModel, MusicBrainzService
+    │       │   ├── playlist/        PlaylistStore (base común)
+    │       │   ├── settings/        PreferenceStores, Theme/Download/PlayerSettings,
+    │       │   │                    ProgressSkinStore, LoadedSkin, CookieText
+    │       │   └── youtube/         Resolved
+    │       ├── platform/            PlatformUri (expect)
+    │       ├── playback/            MusicPlayer (interfaz), PlayerState, QueueItem
+    │       └── ui/
+    │           ├── common/          NowPlaying, TrackArt, Selection, QueueMenu
+    │           ├── library/         LibraryController, LibraryContent, TrackActions
+    │           ├── musicbrainz/     MusicBrainzController, MusicBrainzContent
+    │           ├── platform/        PlatformUi (expect + CompositionLocals)
+    │           ├── player/          PlayerUi, MiniPlayer, NowPlayingScreen, SkinnedProgress
+    │           ├── playlist/        PlaylistsController, PlaylistsContent, AddToPlaylistDialog
+    │           ├── search/          SearchController (+SearchBackend), SearchContent
+    │           ├── settings/        Apariencia, Descargas, Barra de progreso, piezas comunes
+    │           └── theme/           AppTheme, AppComponents (AppCard/AppButton), SoftShadow
+    ├── androidMain/kotlin/…         actual de Android: PlatformUri, PlatformUi, SoftShadow, BD
+    └── desktopMain/kotlin/…         actual de escritorio + todo el motor de escritorio:
+        ├── data/db/                 buildAppDatabase (SQLite incluido)
+        ├── data/download/           DesktopDownloads (cola de descargas)
+        ├── data/importer/           DesktopImports
+        ├── data/library/            DesktopLibrary, Covers
+        ├── data/playlist/           DesktopPlaylistStore
+        ├── data/settings/           DesktopCookieStore, DesktopLibrarySettings,
+        │                            DesktopProgressSkinStore
+        ├── data/update/             DesktopUpdateChecker
+        ├── data/youtube/            DesktopYtDlp
+        ├── platform/                DesktopPaths, Tools (instalador de yt-dlp/ffmpeg/Deno),
+        │                            PlatformUri.desktop (FileUri)
+        ├── playback/                DesktopPlayerController, FfmpegAudioPlayer, Ffmpeg
+        └── ui/                      PlatformUi.desktop, SoftShadow.desktop
+\end{literal}
+\end{arbol}
+
+\section{\texorpdfstring{\cod{app/}}{app/}}
+
+\begin{arbol}
+\begin{literal}
+app/
+├── build.gradle.kts               Versión desde VERSION_NAME, firma desde secretos, MusicBrainz
+└── src/main/
+    ├── AndroidManifest.xml        Permisos, Activities, PlaybackService, widget, FileProvider
+    ├── res/                       Iconos (gato), layout del widget, temas, colores
+    └── java/com/tuapp/eleuthera/
+        ├── EleutheraApp.kt        Application (@HiltAndroidApp) + configuración de WorkManager
+        ├── MainActivity.kt        Raíz: barra inferior, mini reproductor, CompositionLocals
+        ├── di/AppModule.kt        Hilt: base de datos y PreferenceStores
+        ├── data/
+        │   ├── download/          DownloadScheduler, DownloadWorker, DownloadNotifier
+        │   ├── importer/          ImportScheduler, ImportWorker, ImportViewModel, ImportPanel
+        │   ├── library/           MediaLibrary (MediaStore), FolderLibrary (carpetas extra)
+        │   ├── metadata/          MetaDataManager (en desarrollo, aún sin usar)
+        │   ├── playlist/          PlaylistRepository (extiende PlaylistStore)
+        │   ├── settings/          CookieStore, LibrarySettings, ProgressSkinRepository
+        │   ├── update/            UpdateChecker (releases de GitHub)
+        │   └── youtube/           YtDlpEngine (youtubedl-android)
+        ├── playback/              PlaybackService (Media3), PlayerController
+        ├── ui/                    Envoltorios de las pantallas comunes + lo propio de Android
+        └── widget/                MusicWidgetProvider
+\end{literal}
+\end{arbol}
+
+\section{\texorpdfstring{\cod{desktop/}}{desktop/}}
+
+\begin{arbol}
+\begin{literal}
+desktop/
+├── build.gradle.kts               mainClass, versión, módulos de Java, instaladores
+├── icons/                         icon.ico (Windows), icon.icns (macOS), icon.png (Linux)
+└── src/main/
+    ├── resources/icon.png         Icono de la ventana y de la barra de tareas
+    └── kotlin/com/tuapp/eleuthera/desktop/
+        ├── Main.kt                main(), ventana, barra lateral, mini reproductor, volumen
+        ├── AppGraph.kt            Todas las piezas, creadas una vez (lo que Hilt en Android)
+        ├── DesktopModels.kt       uiScope y los "ViewModels" de escritorio
+        ├── SettingsScreen.kt      Ajustes de escritorio (7 páginas)
+        ├── DownloadsScreen.kt     Cola de descargas y aviso de herramientas
+        ├── ImportPanel.kt         Importar listas (CSV/TXT)
+        ├── UpdatePrompt.kt        Aviso de versión nueva
+        ├── RemoteImages.kt        Miniaturas de internet (lo que coil en Android)
+        └── FolderPicker.kt        Diálogos del sistema: carpeta, imagen, archivo
+\end{literal}
+\end{arbol}
+
+% =============================================================================
+\chapter{Gradle, versiones y compilación}
+
+\section{Versiones}
+
+Las versiones de los plugins están en \ruta{build.gradle.kts} (raíz). Van ligadas entre sí:
+si se sube una, hay que revisar las demás.
+
+\begin{dosCol}{Pieza}{Versión y por qué}
+  Kotlin & 2.2.21. Es la primera rama que funciona con Java 25. \\
+  KSP & 2.3.0 (genera el código de Room y Hilt). \\
+  Hilt & 2.57.2 (solo Android). \\
+  Compose Multiplatform & 1.8.2 (\cod{org.jetbrains.compose}). \\
+  Android Gradle Plugin & 8.7.3 (\cod{compileSdk}/\cod{targetSdk} 35, \cod{minSdk} 29 = Android 10). \\
+  Gradle & 9.6.0 (wrapper). El \emph{daemon} usa el JDK 25
+    (\ruta{gradle/gradle-daemon-jvm.properties}); si no está, lo descarga con foojay. \\
+  Room & 2.7.2 (KMP) con \cod{sqlite-bundled} 2.5.2 en escritorio y \cod{sqlite-framework} en Android. \\
+  DataStore & 1.1.7 (\cod{datastore-preferences-core} en común). \\
+  Coroutines / Serialization & 1.9.0 / 1.7.3. \\
+  Media3 & 1.5.1 (ExoPlayer + MediaSession, Android). \\
+  youtubedl-android & 0.18.1 (yt-dlp + FFmpeg + Python empaquetados para Android). \\
+  Coil & 2.7.0 (imágenes en Android). \\
+  Reorderable & 2.4.3 (arrastrar para reordenar, común). \\
+  Código generado & \cod{jvmTarget} 17 en los tres módulos. \\
+\end{dosCol}
+
+\section{Qué hace cada archivo de Gradle}
+
+\begin{dosCol}{Archivo}{Contenido}
+  \ruta{settings.gradle.kts} & Repositorios (Google, Maven Central, Gradle Plugin Portal),
+    plugin foojay para descargar JDKs y los tres módulos. \\
+  \ruta{build.gradle.kts} & Solo declara los plugins y sus versiones (\cod{apply false}). \\
+  \ruta{gradle.properties} & \cod{-Xmx2048m}, \cod{org.gradle.configuration-cache=true},
+    AndroidX. La caché de configuración hace que cambiar una variable de entorno que lee un
+    script (p. ej. \cod{PACKAGING\_JAVA\_HOME}) obligue a reconfigurar: es normal. \\
+  \ruta{shared/build.gradle.kts} & Targets \cod{androidTarget} y \cod{jvm("desktop")};
+    dependencias de cada conjunto de fuentes; KSP de Room para los dos; recursos de Compose
+    (clase \cod{com.tuapp.eleuthera.shared.resources.Res}); \cod{-Xexpect-actual-classes}. \\
+  \ruta{app/build.gradle.kts} & \cod{versionName} desde \cod{VERSION\_NAME},
+    \cod{versionCode} desde \cod{GITHUB\_RUN\_NUMBER}; claves de MusicBrainz desde
+    \ruta{local.properties} o variables de entorno (\cod{BuildConfig}); firma de release
+    solo si existe \cod{SIGNING\_STORE\_FILE}; ABIs arm64-v8a, armeabi-v7a, x86\_64. \\
+  \ruta{desktop/build.gradle.kts} & \cod{mainClass}, versión (de la etiqueta, solo
+    \cod{X.Y.Z}), \cod{-Deleuthera.version}, módulos de Java que van en el instalador y
+    opciones de .msi/.deb/.dmg (icono, menú, \cod{upgradeUuid} fijo, \cod{bundleID}).
+    \cod{PACKAGING\_JAVA\_HOME} elige el JDK que se empaqueta. \\
+\end{dosCol}
+
+\section{Comandos habituales}
+
+\begin{arbol}
+\begin{literal}
+./gradlew :desktop:run                               Abrir la app de escritorio
+./gradlew :desktop:packageDistributionForCurrentOS   Instalador del sistema actual
+                                                     -> desktop/build/compose/binaries/main/
+./gradlew :app:assembleDebug                         APK de depuración
+./gradlew :app:assembleRelease                       APK de release (firmado solo en CI)
+./gradlew --stop                                     Parar el daemon (si algo se queda "pillado")
+\end{literal}
+\end{arbol}
+
+\begin{nota}[Empaquetar en tu ordenador]
+El Java que trae Android Studio (\cod{jbr}) no incluye \cod{jpackage}, así que el instalador
+falla con «jpackage.exe is missing». Instala un JDK 21 completo (por ejemplo
+\cod{winget install EclipseAdoptium.Temurin.21.JDK}) y apunta a él:
+\cod{\$env:PACKAGING\_JAVA\_HOME = "C:\textbackslash Program Files\textbackslash Eclipse Adoptium\textbackslash jdk-21…"}.
+Es lo mismo que hace GitHub Actions.
+\end{nota}
+
+\begin{nota}[Si «no se ve ningún cambio»]
+\cod{./gradlew --stop} y borrar \ruta{.kotlin/}, \ruta{desktop/build/} y \ruta{shared/build/}
+fuerza una compilación limpia.
+\end{nota}
+
+% =============================================================================
+\chapter{Patrones que se repiten en todo el código}
+
+Entender estos cinco patrones es entender el 80\,\% del proyecto.
+
+\section{\emph{expect/actual}: lo que cada plataforma hace a su manera}
+
+Kotlin Multiplatform permite declarar algo en \cod{commonMain} con \cod{expect} y darle una
+implementación \cod{actual} en cada plataforma.
+
+\begin{dosCol}{Declaración común}{Android · Escritorio}
+  \cod{PlatformUri} \newline \ruta{platform/PlatformUri.kt} &
+    \android{} \cod{typealias} de \cod{android.net.Uri} (\cod{content://…}), así el código
+    antiguo de Android no cambió.\newline
+    \escritorio{} clase abstracta con una única implementación, \cod{FileUri(URI)}
+    (\cod{file:///…}). El código común solo la guarda y la compara. \\
+  \cod{PlatformBackHandler} \newline \ruta{ui/platform/PlatformUi.kt} &
+    \android{} \cod{BackHandler} de AndroidX.\newline
+    \escritorio{} no hace nada: cada pantalla tiene su botón de volver. \\
+  \cod{decodeImage(bytes)} &
+    \android{} \cod{BitmapFactory}. \escritorio{} Skia (\cod{Image.makeFromEncoded}). \\
+  \cod{drawSoftShadow} \newline \ruta{ui/theme/SoftShadow.kt} &
+    Sombra difuminada de color para el estilo neumórfico.\newline
+    \android{} \cod{Paint.setShadowLayer}. \escritorio{} filtro de sombra de Skia
+    (sigma $\approx$ radio/2). \\
+  \cod{AppDatabaseConstructor} &
+    Lo genera Room para cada plataforma; no se escribe a mano. Cada plataforma tiene además su
+    \cod{buildAppDatabase(…)}, que decide dónde está el archivo. \\
+\end{dosCol}
+
+\section{CompositionLocals: lo que la raíz de cada app «presta» a las pantallas}
+
+Las pantallas comunes no saben mostrar un aviso ni descargar una imagen. Lo piden a través de
+\cod{CompositionLocal}s que pone la raíz de cada app (\ruta{MainActivity.kt} en Android,
+\ruta{Main.kt} en escritorio). Si faltan, no hacen nada en vez de fallar.
+
+\begin{dosCol}{CompositionLocal}{Para qué · quién lo pone}
+  \cod{LocalToast} & Aviso breve. \android{} \cod{Toast}. \escritorio{} \emph{snackbar}. \\
+  \cod{LocalArtLoader} & Carátula de un archivo de música.
+    \android{} \cod{androidArtLoader} (miniatura de MediaStore o la incrustada).
+    \escritorio{} \cod{desktopArtLoader} $\rightarrow$ \cod{Covers} (ffmpeg). \\
+  \cod{LocalRemoteImage} & Imagen de internet (miniaturas de YouTube, carátulas de
+    MusicBrainz). \android{} coil. \escritorio{} \cod{desktopRemoteImage} (caché propia). \\
+  \cod{LocalNowPlaying} & Qué canción suena, para resaltarla en las listas. \\
+  \cod{LocalComponentStyle} & Estilo de tarjetas y botones elegido en Ajustes (plano,
+    elevado, contorno, neumórfico). Lo pone \cod{AppTheme}. \\
+\end{dosCol}
+
+\begin{aviso}
+Una \cod{Activity} nueva en Android no hereda los CompositionLocals de \cod{MainActivity}:
+tiene que ponerlos ella (mira \cod{MusicBrainzActivity}).
+\end{aviso}
+
+\section{Controllers comunes + envoltorios por plataforma}
+
+La lógica de cada pantalla vive en una clase común normal (un \emph{controller}) que recibe un
+\cod{CoroutineScope}. En Android, un \cod{ViewModel} de Hilt la crea con su
+\cod{viewModelScope} y la expone como \cod{val controller}; en escritorio la crea
+\cod{AppGraph} con \cod{uiScope}. Cuando una pantalla solo necesita unos pocos flujos, en vez de
+controller hay una \emph{interfaz} que implementan el ViewModel de Android y una clase de
+escritorio.
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.9cm and 1.1cm]
+  \node[caja=verde,minimum width=4.6cm] (ctl) {\textbf{SearchController}\\\footnotesize(commonMain)};
+  \node[caja=verde,below=of ctl,minimum width=4.6cm] (scr) {\textbf{SearchContent}\\\footnotesize pantalla común};
+  \node[caja=azul,left=1.6cm of ctl,minimum width=4cm] (vm) {\textbf{SearchViewModel}\\\footnotesize Hilt · YtDlpEngine\\\footnotesize DownloadScheduler};
+  \node[caja=morado,right=1.6cm of ctl,minimum width=4cm] (ag) {\textbf{AppGraph.search}\\\footnotesize DesktopYtDlp\\\footnotesize DesktopDownloads};
+  \draw[flecha] (vm) -- node[etq,above]{crea} (ctl);
+  \draw[flecha] (ag) -- node[etq,above]{crea} (ctl);
+  \draw[flecha] (ctl) -- node[etq,right]{estado} (scr);
+\end{tikzpicture}
+\end{center}
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{4.2cm} >{\raggedright\arraybackslash}p{5.6cm} >{\raggedright\arraybackslash}p{5.6cm}}
+\toprule
+\textbf{Común (shared)} & \textbf{Android (app)} & \textbf{Escritorio} \\ \midrule \endhead
+\bottomrule \endfoot
+\cod{SearchController} + \cod{SearchBackend} & \cod{SearchViewModel} (YtDlpEngine + DownloadScheduler) & \cod{AppGraph.search} (DesktopYtDlp + DesktopDownloads) \\
+\cod{LibraryController} & \cod{LibraryViewModel} (MediaLibrary) & \cod{DesktopLibraryModel} (DesktopLibrary) \\
+\cod{PlaylistsController} & \cod{PlaylistsViewModel} (PlaylistRepository) & \cod{AppGraph.playlists} (DesktopPlaylistStore) \\
+\cod{ProgressSkinController} & \cod{ProgressSkinViewModel} (ProgressSkinRepository) & \cod{AppGraph.skins} (DesktopProgressSkinStore) \\
+\cod{MusicBrainzController} & \cod{MusicBrainzViewModel} (+ OAuth) & \cod{AppGraph.musicBrainz} \\
+interfaz \cod{PlayerUi} & \cod{PlayerViewModel} & \cod{DesktopPlayerUi} \\
+interfaz \cod{ThemeUi} & \cod{ThemeViewModel} & \cod{DesktopThemeUi} \\
+interfaz \cod{DownloadSettingsUi} & \cod{DownloadSettingsViewModel} & \cod{DesktopDownloadSettingsUi} \\
+interfaz \cod{MusicPlayer} & \cod{PlayerController} (Media3) & \cod{DesktopPlayerController} (ffmpeg) \\
+\end{longtable}
+
+\section{Almacenes base abstractos}
+
+Cuando un almacén es igual en todo salvo una operación (leer una imagen, por ejemplo), la clase
+común es abstracta y cada plataforma solo implementa ese hueco:
+
+\begin{dosCol}{Clase común}{Lo que pone cada plataforma}
+  \cod{PlaylistStore} \newline \ruta{data/playlist/PlaylistStore.kt} &
+    \cod{writeCover(image, dest, maxPx)}: guardar la portada elegida reducida.\newline
+    \android{} \cod{PlaylistRepository} (Bitmap; además importa las carpetas de playlists
+    antiguas una vez). \escritorio{} \cod{DesktopPlaylistStore} (ffmpeg). \\
+  \cod{ProgressSkinStore} \newline \ruta{data/settings/ProgressSkinStore.kt} &
+    \cod{inspect(image)} (formato, peso, medidas) y \cod{writePng(image, maxWidth, dest)}.\newline
+    \android{} \cod{ProgressSkinRepository} (ContentResolver + Bitmap).
+    \escritorio{} \cod{DesktopProgressSkinStore} (Skia). \\
+\end{dosCol}
+
+\section{Inyección de dependencias: Hilt frente a AppGraph}
+
+\begin{itemize}
+  \item \android{} Hilt. \ruta{di/AppModule.kt} solo crea la base de datos y los
+        \cod{PreferenceStores}; el resto de clases tienen \cod{@Inject constructor}. Las clases
+        comunes llevan \cod{@Inject}/\cod{@Singleton} de \cod{javax.inject}, que Hilt usa en
+        Android y que en escritorio no hacen nada.
+  \item \escritorio{} \ruta{desktop/.../AppGraph.kt}: un \cod{object} con un
+        \cod{val … by lazy \{ … \}} por cada pieza. Es el único sitio donde se «cablea» la app
+        de escritorio. Para añadir una pieza nueva, se añade ahí.
+\end{itemize}
+
+% =============================================================================
+\chapter{Módulo \texorpdfstring{\cod{shared}}{shared}: lo común}
+
+Rutas relativas a \ruta{shared/src/commonMain/kotlin/com/tuapp/eleuthera/}.
+
+\section{Modelos (\texorpdfstring{\cod{domain/model}}{domain/model})}
+
+\begin{archivos}
+  \ruta{Track.kt} & Una canción que ya está en el dispositivo: id, \cod{PlatformUri}, título,
+    artista, álbum, duración, carpeta… Es lo que se reproduce y se guarda en playlists. \\
+  \ruta{RemoteTrack.kt} & Un resultado de YouTube aún sin descargar (id de vídeo, título,
+    canal, duración, URL, miniatura). \\
+  \ruta{Playlist.kt} & Playlist lista para pintar: datos, tamaño, duración y carátulas para el
+    mosaico de la portada. \\
+  \ruta{ImportedTrack.kt} & Canción leída de un archivo exportado de Spotify, Qobuz… \\
+  \ruta{DownloadStatus.kt} & Estado de una descarga (\emph{sealed}): en cola, progreso,
+    terminada, fallida. \\
+  \ruta{AudioFormat.kt} & MP3 (recodificado, compatible) o M4A (AAC tal cual, sin pérdida). \\
+  \ruta{ThemeConfig.kt} & Todo lo personalizable: cuatro colores ARGB, fuente
+    (\cod{AppFont}), radio de las esquinas y estilo de componentes (\cod{ComponentStyle}). \\
+  \ruta{ProgressSkin.kt} & Diseño de barra de progreso: rutas de las cuatro imágenes
+    (\cod{SkinSlot}: indicador, reproducida, pendiente, final), modo (\cod{TrackMode}: Repetir,
+    Estirar, Revelar, Perseguir), giro del indicador y colores lateral/central (Perseguir). \\
+\end{archivos}
+
+\section{Base de datos (\texorpdfstring{\cod{data/db}}{data/db})}
+
+Room multiplataforma. El archivo es \cod{eleuthera.db}; en Android sigue en el mismo sitio de
+siempre, así que al actualizar se conservan las playlists.
+
+\begin{archivos}
+  \ruta{AppDatabase.kt} & La base de datos (versión 4), sus tres DAOs y las migraciones
+    1$\rightarrow$2$\rightarrow$3$\rightarrow$4. \cod{MIGRATIONS} las usan las dos plataformas. \\
+  \ruta{PlaylistEntities.kt} & Tablas \cod{playlists} y \cod{playlist\_tracks}. \\
+  \ruta{PlaylistDao.kt} & Consultas de playlists: observar, añadir sin repetir,
+    \cod{addToNamed} (crea la playlist si no existe, en una transacción), reordenar… \\
+  \ruta{DownloadEntities.kt} & Tablas \cod{video\_tracks} (vídeo de YouTube $\rightarrow$
+    canción) y \cod{playlist\_requests} (peticiones pendientes de añadir a una playlist) y su
+    \cod{DownloadDao}. \\
+  \ruta{FolderTrackEntities.kt} & Tabla \cod{folder\_tracks}: etiquetas ya leídas de las
+    canciones de carpetas añadidas, para no reabrir archivos que no han cambiado. \\
+\end{archivos}
+
+El esquema completo está en el capítulo~\ref{cap:datos}.
+
+\section{Ajustes y almacenes (\texorpdfstring{\cod{data/settings}}{data/settings})}
+
+\begin{archivos}
+  \ruta{PreferenceStores.kt} & Abre los archivos DataStore en
+    \cod{<baseDir>/datastore/<nombre>.preferences\_pb} (el mismo sitio que usaba Android) y
+    garantiza una sola instancia por archivo. \\
+  \ruta{ThemeRepository.kt} & Tema (store \cod{theme}). \\
+  \ruta{DownloadSettings.kt} & Formato de descarga (store \cod{downloads}). \\
+  \ruta{PlayerSettings.kt} & Volumen de escritorio (store \cod{player}). \\
+  \ruta{ProgressSkinStore.kt} & Base de los diseños de barra: \cod{skins.json} + imágenes en
+    \cod{<dir>/<id>/}, validación (PNG/WebP, $\le$1\,MB, medidas por tipo de imagen),
+    diseño activo ya cargado (\cod{active: Flow<LoadedSkin?>}). \\
+  \ruta{LoadedSkin.kt} & Diseño activo con las imágenes ya decodificadas (se abren una vez,
+    no en cada fotograma). \\
+  \ruta{CookieText.kt} & Convierte cookies JSON (Cookie-Editor…) a formato Netscape y las
+    cuenta. Lo usa escritorio; Android aún tiene su propia conversión en \cod{CookieStore}. \\
+\end{archivos}
+
+\section{Importación, YouTube y MusicBrainz}
+
+\begin{archivos}
+  \ruta{data/importer/ImportFileParser.kt} & Lee CSV de Exportify, TuneMyMusic o Soundiiz
+    (detecta columnas por su nombre) y texto plano «Artista - Título». \\
+  \ruta{data/importer/TrackMatcher.kt} & Elige el mejor resultado de YouTube: duración
+    parecida, canal oficial (\cod{"Artista - Topic"}) y penaliza directos, covers, etc. \\
+  \ruta{data/youtube/Resolved.kt} & Resultado de resolver un enlace: vídeo suelto o playlist. \\
+  \ruta{data/musicbrainz/MusicBrainzModel.kt} & Respuestas de la API (kotlinx-serialization). \\
+  \ruta{data/musicbrainz/MusicBrainzService.kt} & Cliente HTTP (\cod{HttpURLConnection}):
+    buscar grabaciones y lanzamientos, detalles, OAuth. User-Agent identificando la app. \\
+  \ruta{data/playlist/PlaylistStore.kt} & Base común de las playlists (ver capítulo 4). \\
+\end{archivos}
+
+\section{Reproductor (\texorpdfstring{\cod{playback}}{playback})}
+
+\ruta{playback/MusicPlayer.kt} define la interfaz \cod{MusicPlayer}, \cod{PlayerState},
+\cod{QueueItem} y \cod{RepeatMode}. La cola funciona igual en las dos plataformas:
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \foreach \x/\t/\c in {0/{ya escuchadas}/gris, 3.3/{canción actual}/arena, 6.6/{cola del usuario}/azul, 9.9/{cola por defecto}/verde}
+    \node[caja=\c,minimum width=3cm,minimum height=0.9cm] at (\x,0) {\footnotesize\t};
+  \foreach \a/\b in {0/3.3, 3.3/6.6, 6.6/9.9} \draw[flecha] (\a+1.55,0) -- (\b-1.55,0);
+\end{tikzpicture}
+\end{center}
+
+\begin{itemize}
+  \item Al tocar una canción, la \emph{cola por defecto} es el resto de esa lista (o la lista
+        barajada si el aleatorio está activo).
+  \item «Reproducir a continuación» y «Añadir a la cola» van a la \emph{cola del usuario}, que
+        suena antes y se conserva al cambiar de lista.
+\end{itemize}
+
+\section{Pantallas (\texorpdfstring{\cod{ui}}{ui})}
+
+\begin{archivos}
+  \ruta{ui/platform/PlatformUi.kt} & \cod{expect}s de interfaz y los CompositionLocals. \\
+  \ruta{ui/theme/AppTheme.kt} & Tema completo a partir de \cod{ThemeConfig}: calcula
+    superficies y textos con contraste; fuentes variables de \cod{composeResources}. \\
+  \ruta{ui/theme/AppComponents.kt} & \cod{AppCard} y \cod{AppButton} con el estilo elegido;
+    \cod{Modifier.neumorphic}. Las pantallas usan estos en vez de \cod{Card}/\cod{Button}. \\
+  \ruta{ui/common/NowPlaying.kt} & Resaltado de la canción que suena y barras animadas. \\
+  \ruta{ui/common/TrackArt.kt} & Carátulas (con caché) y portada de playlist (mosaico 2×2). \\
+  \ruta{ui/common/Selection.kt} & Selección múltiple: barra de acciones y gestos de fila. \\
+  \ruta{ui/common/QueueMenu.kt} & Menú «a la cola / a una playlist» para listas enteras. \\
+  \ruta{ui/library/*} & Biblioteca: \cod{LibraryController} (búsqueda sin tildes, pestañas
+    canciones/artistas/álbumes/carpetas) y \cod{LibraryContent}; \cod{TrackActions} reúne
+    las acciones sobre canciones que conecta cada raíz. \\
+  \ruta{ui/search/*} & Buscar: \cod{SearchController}, interfaz \cod{SearchBackend} y
+    \cod{SearchContent} (con un hueco \cod{header} para el panel de importar). \\
+  \ruta{ui/playlist/*} & Cuadrícula y detalle de playlists, portada, reordenar y el diálogo
+    «Añadir a playlist» (\cod{PlaylistTarget}). \\
+  \ruta{ui/player/*} & \cod{PlayerUi}, \cod{MiniPlayer} (con \cod{fullControls} en
+    escritorio), \cod{NowPlayingScreen} (cola integrada) y \cod{SkinnedProgress} (barra con
+    imágenes: \cod{SkinnedSeekBar} y \cod{SkinnedTrack}). \\
+  \ruta{ui/settings/SettingsCommon.kt} & Piezas de Ajustes: \cod{SettingsPageScaffold},
+    \cod{SectionTitle}, \cod{ScrollRow}, \cod{SettingsHint} y \cod{OptionChip} (sustituye a
+    \cod{FilterChip}, que en escritorio dejaba un rectángulo claro al pasar el ratón). \\
+  \ruta{ui/settings/SettingsUi.kt} & Interfaces \cod{ThemeUi} y \cod{DownloadSettingsUi};
+    conversión HSV $\leftrightarrow$ ARGB (no existe \cod{android.graphics.Color} en escritorio). \\
+  \ruta{ui/settings/AppearanceSettings.kt} & Ajustes > Apariencia: temas rápidos, colores,
+    selector libre, fuente, bordes, estilo y vista previa. \\
+  \ruta{ui/settings/DownloadSettingsPage.kt} & Ajustes > Descargas (formato). \\
+  \ruta{ui/settings/ProgressSkin*.kt} & Ajustes > Barra de progreso: controller y página
+    (\cod{ImagePicker} = selector de imágenes de la plataforma). \\
+  \ruta{ui/musicbrainz/*} & Explorador de MusicBrainz: \cod{MusicBrainzController} (estado de
+    Compose) y \cod{MusicBrainzContent} (búsqueda, resultados y ventana de detalles). \\
+\end{archivos}
+
+\section{\texorpdfstring{\cod{androidMain}}{androidMain}}
+
+Rutas relativas a \ruta{shared/src/androidMain/kotlin/com/tuapp/eleuthera/}.
+
+\begin{archivos}
+  \ruta{platform/PlatformUri.android.kt} & \cod{actual typealias PlatformUri = android.net.Uri}. \\
+  \ruta{ui/platform/PlatformUi.android.kt} & \cod{BackHandler} y \cod{BitmapFactory}. \\
+  \ruta{ui/theme/SoftShadow.android.kt} & Sombras con \cod{Paint.setShadowLayer}. \\
+  \ruta{data/db/AppDatabase.android.kt} & \cod{buildAppDatabase(context)} en
+    \cod{databases/eleuthera.db}. \\
+\end{archivos}
+
+% =============================================================================
+\chapter{Módulo \texorpdfstring{\cod{app}}{app}: Android}
+
+Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
+
+\section{Puntos de entrada y manifiesto}
+
+\begin{dosCol}{Componente}{Qué es}
+  \cod{EleutheraApp} & \cod{Application} con \cod{@HiltAndroidApp}; configura WorkManager
+    para que los Workers reciban dependencias de Hilt. \\
+  \cod{MainActivity} & La raíz: tema, CompositionLocals, barra inferior (Buscar, Biblioteca,
+    Playlists, Ajustes), mini reproductor, reproductor completo, «Añadir a playlist», playlists
+    rápidas y aviso de actualización. \\
+  \cod{CookieLoginActivity} & Inicio de sesión en YouTube con un navegador interno; al guardar
+    copia las cookies al \cod{cookies.txt} de yt-dlp y las borra del navegador. \\
+  \cod{MusicBrainzActivity} & Pantalla de MusicBrainz y vuelta del OAuth
+    (\cod{com.tuapp.eleuthera://oauth}). \\
+  \cod{PlaybackService} & \cod{MediaSessionService}: dueño del reproductor; Media3 genera la
+    notificación y los controles de bloqueo, Bluetooth y auriculares. \\
+  \cod{MusicWidgetProvider} & Widget de la pantalla de inicio (tema y diseño de barra). \\
+  Permisos & Internet, notificaciones, leer audio (\cod{READ\_MEDIA\_AUDIO} /
+    \cod{READ\_EXTERNAL\_STORAGE} antiguo), servicios en primer plano (datos y reproducción),
+    \emph{wake lock}. \\
+\end{dosCol}
+
+\section{Datos}
+
+\begin{archivos}
+  \ruta{di/AppModule.kt} & Hilt: \cod{AppDatabase} y \cod{PreferenceStores(filesDir)}. \\
+  \ruta{data/youtube/YtDlpEngine.kt} & Única puerta a yt-dlp (librería youtubedl-android):
+    inicializa y actualiza yt-dlp una vez por arranque, resuelve búsquedas/enlaces y descarga
+    el audio (MP3 o M4A) a la caché. \\
+  \ruta{data/download/DownloadScheduler.kt} & Encola descargas en WorkManager, sin
+    duplicados: si ya está descargada solo la añade a la playlist; si está en curso, apunta la
+    playlist para cuando termine. Expone el estado por id de vídeo. \\
+  \ruta{data/download/DownloadWorker.kt} & Un trabajo por canción: descarga, publica en
+    \cod{Music/Eleuthera[/playlist]} y resuelve las peticiones de playlist. Máximo 4 a la vez
+    (\cod{DownloadLimiter}) y 2 reintentos. \\
+  \ruta{data/download/DownloadNotifier.kt} & Notificación de progreso con «Cancelar». \\
+  \ruta{data/importer/ImportScheduler.kt} & Lanza importaciones (la lista va a un archivo) y
+    recuerda las cerradas para que no reaparezcan. \\
+  \ruta{data/importer/ImportWorker.kt} & Busca cada canción, elige con \cod{TrackMatcher} y
+    la encola; apunta las no encontradas. \\
+  \ruta{data/importer/ImportViewModel.kt}, \ruta{ImportPanel.kt} & Confirmación (nombre de la
+    playlist) y progreso de las importaciones, debajo del buscador. \\
+  \ruta{data/library/MediaLibrary.kt} & Biblioteca: \cod{Music/Eleuthera} vía MediaStore (con
+    etiquetas ID3) + carpetas extra; publicar y borrar archivos (con confirmación del sistema
+    si Android la pide). \\
+  \ruta{data/library/FolderLibrary.kt} & Carpetas añadidas en Ajustes, recorridas con el
+    permiso del selector (SAF), sin MediaStore. Lista barata + etiquetas en segundo plano
+    guardadas en \cod{folder\_tracks}. \\
+  \ruta{data/playlist/PlaylistRepository.kt} & \cod{PlaylistStore} de Android + importación
+    única de carpetas de playlists antiguas. \\
+  \ruta{data/settings/CookieStore.kt} & \cod{filesDir/cookies.txt}; importa Netscape/JSON y
+    guarda la sesión de \cod{CookieLoginActivity}; copia por proceso de yt-dlp. \\
+  \ruta{data/settings/LibrarySettings.kt} & Carpetas extra (URI + permiso persistente) y el
+    botón flotante de playlists rápidas (activado y posición). \\
+  \ruta{data/settings/ProgressSkinRepository.kt} & \cod{ProgressSkinStore} de Android. \\
+  \ruta{data/update/UpdateChecker.kt} & Última release de GitHub (API pública, cada 12\,h como
+    mucho; versiones omitidas). \\
+  \ruta{data/metadata/MetaDataManager.kt} & Metadatos de una canción (álbum, portada…) y
+    detección de canciones sin carátula o sin datos. \emph{En desarrollo: aún no lo usa nadie.} \\
+\end{archivos}
+
+\section{Reproducción}
+
+\begin{archivos}
+  \ruta{playback/PlaybackService.kt} & El servicio de Media3 (sigue sonando sin interfaz; se
+    apaga al quitar la app de recientes si no suena nada). \\
+  \ruta{playback/PlayerController.kt} & Implementa \cod{MusicPlayer} hablando con el servicio
+    por \cod{MediaController}; la UI nunca toca ExoPlayer. Guarda acciones pedidas antes de
+    conectar (p. ej. desde el widget) y redibuja el widget. \\
+\end{archivos}
+
+\section{Interfaz}
+
+\begin{archivos}
+  \ruta{ui/search/*} & \cod{SearchScreen} (pantalla común + \cod{ImportPanel}) y
+    \cod{SearchViewModel}. \\
+  \ruta{ui/library/*} & \cod{LibraryScreen} (permiso de lectura y confirmación de borrado
+    alrededor de \cod{LibraryContent}) y \cod{LibraryViewModel}. \\
+  \ruta{ui/playlists/*} & \cod{PlaylistsScreen} (selector de fotos del sistema),
+    \cod{PlaylistsViewModel} y \cod{QuickPlaylist.kt} (botón flotante arrastrable con todas
+    las playlists). \\
+  \ruta{ui/player/PlayerViewModel.kt} & Implementa \cod{PlayerUi} sobre \cod{PlayerController}. \\
+  \ruta{ui/settings/SettingsScreen.kt} & Menú de Ajustes con resumen de cada categoría:
+    Apariencia, Barra de progreso, Biblioteca, Descargas, Cuenta de YouTube, Acerca de, y el
+    botón de MusicBrainz. \\
+  \ruta{ui/settings/*Page.kt}, \ruta{*ViewModel.kt} & Páginas propias de Android (Biblioteca,
+    Cuenta, Acerca de) y los ViewModels que envuelven las comunes. \\
+  \ruta{ui/login/CookieLoginActivity.kt} & Inicio de sesión en YouTube. \\
+  \ruta{ui/musicbrainz/*} & \cod{MusicBrainzActivity} y \cod{MusicBrainzViewModel} (envoltorio). \\
+  \ruta{ui/update/UpdatePrompt.kt} & Aviso de versión nueva (+ \cod{UpdateViewModel}). \\
+  \ruta{ui/common/AndroidArtLoader.kt} & Carátulas para \cod{LocalArtLoader}. \\
+  \ruta{widget/MusicWidgetProvider.kt} & Widget redimensionable: carátula, controles y barra
+    de progreso dibujada con el tema y el diseño activo (incluido Perseguir). Layout en
+    \ruta{res/layout/widget\_music\_player.xml}. \\
+\end{archivos}
+
+% =============================================================================
+\chapter{Escritorio: módulo \texorpdfstring{\cod{desktop}}{desktop} y \texorpdfstring{\cod{desktopMain}}{desktopMain}}
+
+\section{La app (\texorpdfstring{\cod{desktop/}}{desktop/})}
+
+Rutas relativas a \ruta{desktop/src/main/kotlin/com/tuapp/eleuthera/desktop/}.
+
+\begin{archivos}
+  \ruta{Main.kt} & \cod{main()}: aspecto nativo de los diálogos Swing, instala las
+    herramientas (\cod{AppGraph.prepareTools()}) y abre la ventana (1200×800, icono).
+    \cod{App()} es la raíz: barra lateral (Buscar, Biblioteca, Playlists, Ajustes), aviso de
+    herramientas, contenido, mini reproductor con volumen, aviso de actualización, diálogo de
+    playlists y reproductor completo encima. \\
+  \ruta{AppGraph.kt} & Todas las piezas, \cod{by lazy}. Versión de la app desde
+    \cod{-Deleuthera.version}. \\
+  \ruta{DesktopModels.kt} & \cod{uiScope} (hilo principal) y los equivalentes a ViewModels:
+    \cod{DesktopPlayerUi}, \cod{DesktopLibraryModel}, \cod{DesktopThemeUi},
+    \cod{DesktopDownloadSettingsUi}, \cod{desktopArtLoader}. \\
+  \ruta{SettingsScreen.kt} & Ajustes: Apariencia y Descargas (comunes), Barra de progreso
+    (común), Biblioteca (carpetas del disco), Cuenta de YouTube (sesión del navegador o
+    archivo), MusicBrainz (común) y Acerca de (versión, carpeta de datos, versiones de las
+    herramientas, actualizar yt-dlp, buscar actualizaciones). \\
+  \ruta{DownloadsScreen.kt} & \cod{DownloadQueuePanel} (a la derecha de Buscar) y
+    \cod{ToolsBanner} (instalando / error con «Reintentar»). \\
+  \ruta{ImportPanel.kt} & Importar CSV/TXT con confirmación y tarjetas de progreso. \\
+  \ruta{UpdatePrompt.kt} & Aviso de versión nueva (Descargar / Más tarde / Omitir). \\
+  \ruta{RemoteImages.kt} & Descarga y caché en memoria de imágenes de internet. \\
+  \ruta{FolderPicker.kt} & Diálogos del sistema: \cod{choose()} (carpeta),
+    \cod{chooseImage()}, \cod{chooseFile(título, extensiones)}. \\
+\end{archivos}
+
+\section{El motor (\texorpdfstring{\cod{shared/src/desktopMain}}{shared/src/desktopMain})}
+
+Rutas relativas a \ruta{shared/src/desktopMain/kotlin/com/tuapp/eleuthera/}.
+
+\begin{archivos}
+  \ruta{platform/DesktopPaths.kt} & Carpeta de datos: \cod{\%APPDATA\%\textbackslash Eleuthera},
+    \cod{\textasciitilde/Library/Application Support/Eleuthera} o
+    \cod{\textasciitilde/.local/share/eleuthera}. Música: \cod{\textasciitilde/Music/Eleuthera}. \\
+  \ruta{platform/Tools.kt} & Busca o descarga yt-dlp (releases de yt-dlp), ffmpeg/ffprobe
+    (BtbN en Windows/Linux, martin-riedl en macOS) y Deno en \cod{<datos>/bin}; actualiza
+    yt-dlp en cada arranque; versiones para Acerca de. \\
+  \ruta{platform/PlatformUri.desktop.kt} & \cod{FileUri}. \\
+  \ruta{data/youtube/DesktopYtDlp.kt} & Lanza yt-dlp: búsqueda/resolución (JSON),
+    descarga con progreso, \cod{--ffmpeg-location}, \cod{--js-runtimes deno:…} (solo con
+    nuestra copia), \cod{--cookies} (copia por proceso) y \cod{exportBrowserCookies}
+    (\cod{--cookies-from-browser}). Cancelar mata el proceso y sus hijos. \\
+  \ruta{data/download/DesktopDownloads.kt} & Cola de descargas: 4 a la vez, 2 reintentos, sin
+    duplicados, subcarpeta y playlist con el nombre de la lista. \emph{Vive en memoria.} \\
+  \ruta{data/importer/DesktopImports.kt} & Importaciones (\cod{TrackMatcher} + cola de
+    descargas). \emph{Viven en memoria.} \\
+  \ruta{data/library/DesktopLibrary.kt} & Biblioteca: carpetas de
+    \cod{DesktopLibrarySettings}, relistado cada 30\,s, etiquetas con ffprobe en lotes (4
+    hilos) guardadas en \cod{folder\_tracks}. \\
+  \ruta{data/library/Covers.kt} & Carátulas con ffmpeg (incrustada o \cod{cover.jpg} /
+    \cod{folder.jpg}), 300\,px, caché en disco (\cod{cache/covers}) y en memoria. \\
+  \ruta{data/playlist/DesktopPlaylistStore.kt} & \cod{PlaylistStore} con portadas vía ffmpeg. \\
+  \ruta{data/settings/DesktopCookieStore.kt} & \cod{<datos>/cookies.txt}: importar archivo,
+    traer del navegador (solo cookies de youtube.com/google.com y exige sesión iniciada). \\
+  \ruta{data/settings/DesktopLibrarySettings.kt} & Carpetas de música (store \cod{library}). \\
+  \ruta{data/settings/DesktopProgressSkinStore.kt} & \cod{ProgressSkinStore} con Skia. \\
+  \ruta{data/update/DesktopUpdateChecker.kt} & Release de GitHub con instalador para este
+    sistema (.msi, .deb o el .dmg de su procesador). Si solo trae el APK, no avisa. \\
+  \ruta{data/db/AppDatabase.desktop.kt} & \cod{<datos>/eleuthera.db} con SQLite incluido. \\
+  \ruta{playback/Ffmpeg.kt} & Localiza ffmpeg (bin/, PATH, rutas típicas) y \cod{probe()}
+    (etiquetas, duración, carátula). \\
+  \ruta{playback/FfmpegAudioPlayer.kt} & Reproduce cualquier formato (ver figura). \\
+  \ruta{playback/DesktopPlayerController.kt} & \cod{MusicPlayer} de escritorio: la lista y la
+    cola viven aquí; \cod{FfmpegAudioPlayer} solo suena la canción actual. \\
+\end{archivos}
+
+\subsection*{Cómo suena una canción en escritorio}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.55cm]
+  \node[caja=gris] (f) {archivo\\\footnotesize mp3, m4a, webm,\\\footnotesize opus, flac…};
+  \node[caja=arena,right=of f] (ff) {proceso\\\textbf{ffmpeg}};
+  \node[caja=verde,right=of ff] (pcm) {PCM\\\footnotesize 44,1\,kHz estéreo};
+  \node[caja=azul,right=of pcm] (hl) {hilo lector\\\footnotesize aplica el volumen};
+  \node[caja=morado,right=of hl] (sdl) {\cod{SourceDataLine}\\\footnotesize javax.sound};
+  \draw[flecha] (f) -- (ff); \draw[flecha] (ff) -- (pcm); \draw[flecha] (pcm) -- (hl); \draw[flecha] (hl) -- (sdl);
+\end{tikzpicture}
+\end{center}
+
+La posición la calcula la propia clase (lo enviado a la tarjeta menos lo que espera en su
+búfer); saltar a otro punto relanza ffmpeg desde ahí.
+
+\section{Instaladores}
+
+\cod{./gradlew :desktop:packageDistributionForCurrentOS} genera el instalador del sistema en el
+que se ejecuta, con Java dentro (solo los módulos que usa la app: \cod{java.net.http},
+\cod{java.sql}, \cod{java.naming}, \cod{java.management}, \cod{jdk.unsupported},
+\cod{jdk.charsets}, \cod{jdk.localedata}, \cod{jdk.accessibility} y los que añade Compose).
+
+\begin{dosCol}{Sistema}{Detalles}
+  Windows (.msi) & Por usuario (sin administrador), con elección de carpeta, menú y acceso
+    directo. El \cod{upgradeUuid} es fijo para instalar encima de la versión anterior. \\
+  Linux (.deb) & Paquete \cod{eleuthera}, categoría AudioVideo, acceso directo. \\
+  macOS (.dmg) & \cod{com.tuapp.eleuthera}, categoría Música. Sin firmar: la primera vez,
+    clic derecho > Abrir (o \cod{xattr -dr com.apple.quarantine}). \\
+\end{dosCol}
+
+% =============================================================================
+\chapter{Cómo funciona cada cosa (flujos)}
+
+\section{Buscar y descargar}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.7cm and 0.6cm]
+  \node[caja=verde,minimum width=3.6cm] (sc) {SearchContent\\\footnotesize texto o enlace};
+  \node[caja=verde,right=of sc,minimum width=3.6cm] (ctl) {SearchController};
+  \node[caja=verde,right=of ctl,minimum width=3.6cm] (be) {SearchBackend\\\footnotesize\cod{resolve} · \cod{enqueue}};
+  \node[caja=azul,below left=1.1cm and -1.4cm of be,minimum width=4.4cm] (and)
+    {\footnotesize\textbf{Android}\\\footnotesize YtDlpEngine $\rightarrow$ DownloadScheduler\\\footnotesize $\rightarrow$ DownloadWorker (WorkManager)\\\footnotesize $\rightarrow$ MediaLibrary.publish};
+  \node[caja=morado,below right=1.1cm and -1.4cm of be,minimum width=4.4cm] (dsk)
+    {\footnotesize\textbf{Escritorio}\\\footnotesize DesktopYtDlp $\rightarrow$ DesktopDownloads\\\footnotesize $\rightarrow$ \textasciitilde/Music/Eleuthera\\\footnotesize $\rightarrow$ DesktopLibrary.refresh};
+  \draw[flecha] (sc) -- (ctl); \draw[flecha] (ctl) -- (be);
+  \draw[flecha] (be) -- (and); \draw[flecha] (be) -- (dsk);
+\end{tikzpicture}
+\end{center}
+
+\begin{enumerate}
+  \item El texto se convierte en \cod{ytsearch20:…}; un enlace de vídeo o playlist se pasa tal
+        cual. yt-dlp devuelve un JSON plano (\cod{--flat-playlist}) que se traduce a
+        \cod{RemoteTrack}s.
+  \item Al descargar, si el vídeo ya está en \cod{video\_tracks} no se baja otra vez: solo se
+        añade a la playlist. Si está en curso, se guarda una \cod{playlist\_request}.
+  \item yt-dlp extrae el audio (MP3 o M4A), incrusta metadatos y miniatura; el archivo va a
+        \cod{Eleuthera/} o \cod{Eleuthera/<playlist>/} y se añade a la playlist en su posición.
+\end{enumerate}
+
+\section{Importar una lista de Spotify, Qobuz…}
+
+\cod{ImportFileParser} lee el archivo y agrupa por playlist $\rightarrow$ el usuario confirma
+el nombre $\rightarrow$ por cada canción: buscar en YouTube, \cod{TrackMatcher.best}, encolar la
+descarga dentro de la playlist (pausa corta entre búsquedas) $\rightarrow$ las no encontradas
+se pueden ver al final. Android: \cod{ImportScheduler}/\cod{ImportWorker} (sobrevive a cerrar la
+app). Escritorio: \cod{DesktopImports} (en memoria).
+
+\section{Biblioteca}
+
+\begin{itemize}
+  \item \android{} \cod{MediaLibrary}: \cod{Music/Eleuthera} vía MediaStore + carpetas extra con
+        \cod{FolderLibrary} (SAF).
+  \item \escritorio{} \cod{DesktopLibrary}: \cod{\textasciitilde/Music/Eleuthera} + carpetas
+        añadidas, recorridas directamente.
+  \item En ambas: los archivos nuevos aparecen al momento con el nombre del archivo
+        («Artista - Título [id]») y sus etiquetas se leen en segundo plano y se guardan en
+        \cod{folder\_tracks}, para no volver a abrir los que no cambian.
+  \item \cod{LibraryController} recibe la lista y hace búsqueda, pestañas y grupos.
+\end{itemize}
+
+\section{Barra de progreso personalizada}
+
+Ajustes > Barra de progreso $\rightarrow$ \cod{ProgressSkinController} $\rightarrow$
+\cod{ProgressSkinStore} valida la imagen (\cod{inspect}), la reduce (\cod{writePng}: 256\,px las
+cuadradas, 2048\,px las barras) y la guarda en \cod{progress\_skins/<id>/}. El diseño activo se
+expone ya decodificado (\cod{LoadedSkin}) y lo dibujan \cod{SkinnedSeekBar} (reproductor),
+\cod{SkinnedTrack} (mini reproductor) y, en Android, el widget.
+
+\section{Sesión de YouTube (cookies)}
+
+yt-dlp necesita cookies para algunos vídeos. Se guardan en formato Netscape en la carpeta
+privada de la app y cada proceso de yt-dlp recibe \emph{su propia copia} (yt-dlp reescribe el
+archivo y hay varias descargas a la vez).
+
+\begin{itemize}
+  \item \android{} importar archivo o iniciar sesión dentro de la app (\cod{CookieLoginActivity}).
+  \item \escritorio{} importar archivo o «Traer sesión» del navegador (Firefox, Chrome, Edge,
+        Brave, Opera, Vivaldi, Safari, Chromium): yt-dlp lee las cookies una vez y se guardan
+        solo las de YouTube/Google, exigiendo que haya sesión iniciada.
+\end{itemize}
+
+\section{Aviso de versión nueva}
+
+Al abrir (como mucho cada 12\,h) se consulta
+\cod{api.github.com/repos/ErMichoss/Eleuthera/releases/latest}. Android busca el APK; escritorio,
+el instalador de su sistema (y en macOS el \cod{.dmg} de su procesador: \cod{-mac-arm64} o
+\cod{-mac-x64}). Se puede omitir una versión. La comprobación manual está en Acerca de.
+
+\section{MusicBrainz}
+
+\cod{MusicBrainzController} busca canciones (\emph{recordings}) o álbumes (\emph{releases}) con
+consultas Lucene, abre los detalles respetando el límite de MusicBrainz (pausa de 1,2\,s) y
+puede cargar los detalles de todas las pistas de un álbum. Carátulas de
+\cod{coverartarchive.org}. El inicio de sesión (OAuth) solo está en Android: la redirección
+registrada es \cod{com.tuapp.eleuthera://oauth}, que el escritorio no puede recibir.
+
+% =============================================================================
+\chapter{Datos guardados}\label{cap:datos}
+
+\section{Base de datos \texorpdfstring{\cod{eleuthera.db}}{eleuthera.db} (Room, versión 4)}
+
+\begin{dosCol}{Tabla}{Columnas y uso}
+  \cod{playlists} & \cod{id} (PK autogenerada), \cod{name}, \cod{createdAt},
+    \cod{coverPath} (portada personalizada, v2). \\
+  \cod{playlist\_tracks} & \cod{playlistId}, \cod{trackId} (id de la canción), \cod{position}:
+    orden de cada canción dentro de cada playlist. \\
+  \cod{video\_tracks} & \cod{videoId} (PK) $\rightarrow$ \cod{trackId}: qué archivo corresponde
+    a cada vídeo de YouTube (v3, evita descargar dos veces). \\
+  \cod{playlist\_requests} & (\cod{videoId}, \cod{playlistName}) PK, \cod{position}: «añade este
+    vídeo a esta playlist cuando exista el archivo» (v3). \\
+  \cod{folder\_tracks} & \cod{documentId} (PK), \cod{uri}, \cod{folder}, \cod{lastModified},
+    \cod{size}, \cod{title}, \cod{artist}, \cod{album}, \cod{durationMs}, \cod{tagged}:
+    etiquetas ya leídas de las carpetas añadidas (v4). \\
+\end{dosCol}
+
+\begin{aviso}[Cambiar el esquema]
+Si cambias una entidad: sube \cod{version} en \cod{AppDatabase}, escribe la
+\cod{Migration} correspondiente y añádela a \cod{MIGRATIONS}. Sin migración, los usuarios
+perderían sus playlists al actualizar.
+\end{aviso}
+
+\section{Ajustes (DataStore)}
+
+Archivos \cod{datastore/<nombre>.preferences\_pb} dentro de la carpeta privada de la app.
+
+\begin{dosCol}{Store}{Claves}
+  \cod{theme} \comun & \cod{primary}, \cod{secondary}, \cod{background}, \cod{accent},
+    \cod{font}, \cod{radius}, \cod{style}. \\
+  \cod{downloads} \comun & \cod{format}. \\
+  \cod{player} \comun & \cod{volume} (escritorio). \\
+  \cod{library} \android & \cod{folder\_trees} (carpetas con permiso), \cod{extra\_folders}
+    (formato antiguo), \cod{quick\_playlists}, \cod{quick\_button\_x}/\cod{\_y}. \\
+  \cod{library} \escritorio & \cod{folders}. \\
+  \cod{updates} \escritorio & \cod{last\_check}, \cod{skipped\_version}. \\
+\end{dosCol}
+
+En Android además hay \emph{SharedPreferences} antiguas: \cod{updates} (\cod{last\_check},
+\cod{skipped\_version}), \cod{imports} (\cod{dismissed}) y \cod{playlists} (importación única de
+carpetas).
+
+\section{Archivos en disco}
+
+\begin{dosCol}{Dónde}{Qué hay}
+  \android{} \cod{filesDir/} & \cod{datastore/}, \cod{cookies.txt}, \cod{covers/} (portadas de
+    playlists), \cod{progress\_skins/} (\cod{skins.json} + imágenes), \cod{imports/}
+    (no encontradas). \\
+  \android{} \cod{cacheDir/} & \cod{dl/}, \cod{resolve/} (temporales de yt-dlp),
+    \cod{imports/} (listas en curso). \\
+  \android{} almacenamiento compartido & \cod{Music/Eleuthera[/playlist]/}: la música. \\
+  \escritorio{} carpeta de datos & \cod{bin/} (yt-dlp, ffmpeg, ffprobe, deno),
+    \cod{datastore/}, \cod{eleuthera.db}, \cod{cookies.txt}, \cod{covers/},
+    \cod{progress\_skins/}, \cod{cache/covers/}, \cod{cache/dl/}, \cod{cache/tools/}. \\
+  \escritorio{} \cod{\textasciitilde/Music/Eleuthera/} & La música descargada. \\
+\end{dosCol}
+
+% =============================================================================
+\chapter{Publicar una versión (CI)}
+
+\ruta{.github/workflows/release.yml} se lanza al subir una etiqueta \cod{v*} (y a mano desde
+Actions > Release > Run workflow, para probar sin publicar).
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.5cm and 0.8cm]
+  \node[caja=gris] (tag) {\cod{git push origin vX.Y.Z}};
+  \node[caja=azul,right=1.2cm of tag,minimum width=4.5cm] (apk) {\textbf{apk} · ubuntu\\\footnotesize JDK 25 · \cod{:app:assembleRelease}};
+  \node[caja=morado,below=of apk,minimum width=4.5cm] (desk) {\textbf{desktop} × 4\\\footnotesize windows · linux · mac-arm64 · mac-x64\\\footnotesize JDK 21 (empaqueta) + JDK 25 (Gradle)};
+  \node[caja=verde,right=1.2cm of apk,yshift=-0.75cm,minimum width=3.4cm] (rel) {\textbf{release}\\\footnotesize junta todo y publica};
+  \draw[flecha] (tag) -- (apk); \draw[flecha] (tag) |- (desk);
+  \draw[flecha] (apk) -- (rel); \draw[flecha] (desk) -- (rel);
+\end{tikzpicture}
+\end{center}
+
+\begin{dosCol}{Secreto de GitHub}{Para qué}
+  \cod{KEYSTORE\_BASE64} & Almacén de claves de firma en Base64. \\
+  \cod{SIGNING\_STORE\_PASSWORD}, \cod{SIGNING\_KEY\_ALIAS}, \cod{SIGNING\_KEY\_PASSWORD} & Firma del APK. \\
+  \cod{MUSICBRAINZ\_CLIENT\_ID}, \cod{MUSICBRAINZ\_CLIENT\_SECRET} & Inicio de sesión en MusicBrainz (en local van en \ruta{local.properties}). \\
+\end{dosCol}
+
+Archivos publicados: \cod{Eleuthera-vX.Y.Z.apk}, \cod{…-windows-x64.msi},
+\cod{…-linux-amd64.deb}, \cod{…-mac-arm64.dmg} y \cod{…-mac-x64.dmg}. El \cod{versionCode} de
+Android es el número de ejecución, que siempre crece.
+
+\begin{aviso}[Nunca se sube al repositorio]
+El almacén de claves (\cod{*.jks}) y sus contraseñas, \ruta{local.properties} (claves de
+MusicBrainz y ruta del SDK), cualquier \cod{cookies*.txt}/\cod{cookies*.json} y la carpeta
+\ruta{.idea/}. El \ruta{.gitignore} ya los excluye, pero revisa cada commit. Para las cookies,
+mejor una cuenta de YouTube secundaria.
+\end{aviso}
+
+% =============================================================================
+\chapter{Quiero cambiar…}
+
+\begin{dosCol}{Quiero…}{Toca aquí}
+  Una pantalla que se ve en las dos apps & \ruta{shared/.../ui/<pantalla>/*Content.kt} (y su
+    \cod{*Controller.kt}). \\
+  Algo solo del móvil (permisos, notificación, widget) & \ruta{app/}. \\
+  Algo solo del ordenador (ventana, barra lateral, Ajustes de escritorio) &
+    \ruta{desktop/src/main/kotlin/.../desktop/}. \\
+  Cómo se descarga en escritorio & \cod{DesktopYtDlp} y \cod{DesktopDownloads}
+    (\cod{desktopMain}). \\
+  Cómo se descarga en Android & \cod{YtDlpEngine}, \cod{DownloadScheduler},
+    \cod{DownloadWorker}. \\
+  Las opciones de yt-dlp (formato, metadatos) & \cod{downloadAudio} en \cod{YtDlpEngine}
+    \emph{y} en \cod{DesktopYtDlp} (mantenerlas iguales). \\
+  Cómo se elige la canción al importar & \ruta{shared/.../data/importer/TrackMatcher.kt}. \\
+  Qué formatos de lista se aceptan & \ruta{ImportFileParser.kt}. \\
+  Colores, fuentes, temas rápidos & \ruta{ui/theme/AppTheme.kt},
+    \ruta{ui/settings/AppearanceSettings.kt} (\cod{presets}). \\
+  Una fuente nueva & \ruta{shared/src/commonMain/composeResources/font/} + \cod{AppFont} +
+    \cod{AppTheme}. \\
+  El aspecto de tarjetas y botones & \ruta{ui/theme/AppComponents.kt}. \\
+  Un modo nuevo de barra de progreso & \cod{TrackMode} (\ruta{ProgressSkin.kt}),
+    \ruta{SkinnedProgress.kt}, \ruta{ProgressSkinSection.kt} y el widget. \\
+  La cola de reproducción & \cod{PlayerController} (Android) y \cod{DesktopPlayerController}
+    (escritorio): las dos siguen \cod{MusicPlayer}. \\
+  Una tabla o columna de la base de datos & \ruta{data/db/} + migración (capítulo~\ref{cap:datos}). \\
+  Un ajuste nuevo & El repositorio de su store en \ruta{data/settings/} y su página. \\
+  Una dependencia para las dos apps & \ruta{shared/build.gradle.kts} (\cod{commonMain}). \\
+  Una pieza nueva en escritorio & Créala y añádela a \cod{AppGraph}. \\
+  Una pieza nueva en Android & \cod{@Inject constructor} (o un \cod{@Provides} en \cod{AppModule}). \\
+  MusicBrainz & \ruta{shared/.../data/musicbrainz/} y \ruta{shared/.../ui/musicbrainz/}
+    (\emph{no} en \cod{app/}). \\
+  Los instaladores & \ruta{desktop/build.gradle.kts} y \ruta{desktop/icons/}. \\
+  La publicación & \ruta{.github/workflows/release.yml}. \\
+\end{dosCol}
+
+% =============================================================================
+\chapter{Restos, límites conocidos y pendientes}
+
+\section{Archivos que sobran}
+
+\begin{itemize}
+  \item \ruta{gradle/libs.versions.toml}: lo dejó la plantilla de Android Studio; ningún script
+        lo usa (las versiones están en los \cod{build.gradle.kts}). Se puede borrar.
+  \item \ruta{app/src/main/java/com/tuapp/eleuthera/ui/theme/Color.kt}, \ruta{Theme.kt},
+        \ruta{Type.kt}: tema de la plantilla, sustituido por \cod{AppTheme} de \cod{shared}.
+  \item \cod{ExampleUnitTest} y \cod{ExampleInstrumentedTest}: pruebas de ejemplo.
+\end{itemize}
+
+\section{Límites conocidos}
+
+\begin{itemize}
+  \item \escritorio{} La cola de descargas y las importaciones viven en memoria: si se cierra la
+        app a medias, se pierden (en Android sobreviven gracias a WorkManager).
+  \item \escritorio{} MusicBrainz sin inicio de sesión (haría falta registrar otra redirección).
+  \item \escritorio{} La versión de macOS no está firmada por Apple.
+  \item \android{} \cod{CookieStore} tiene su propia conversión JSON$\rightarrow$Netscape;
+        podría usar \cod{CookieText} (común).
+  \item \android{} \cod{MetaDataManager} está a medias y aún no se usa.
+\end{itemize}
+
+\section{Ideas pendientes}
+
+Atajos de teclado y teclas multimedia en escritorio, icono en la bandeja del sistema para
+seguir sonando con la ventana cerrada, arrastrar un CSV o un enlace a la ventana, y cola de
+descargas persistente en escritorio.
+
+\vfill
+\begin{center}
+  \includegraphics[width=1.6cm]{img/icon.png}\\[0.3em]
+  {\small\color{gris} Mantén este documento al día: si mueves o creas archivos, actualiza el
+  capítulo correspondiente y vuelve a compilar \cod{docs/estructura.tex}.}
+\end{center}
+
+\end{document}

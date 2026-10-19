@@ -13,14 +13,12 @@ import kotlinx.coroutines.launch
 
 /** Estado global del tema: lo lee MainActivity y lo modifica la pantalla de Ajustes. */
 @HiltViewModel
-class ThemeViewModel @Inject constructor(private val repo: ThemeRepository) : ViewModel() {
+class ThemeViewModel @Inject constructor(private val repo: ThemeRepository) : ViewModel(), ThemeUi {
 
-    val config: StateFlow<ThemeConfig> =
+    override val config: StateFlow<ThemeConfig> =
         repo.config.stateIn(viewModelScope, SharingStarted.Eagerly, ThemeConfig())
 
-    fun update(transform: (ThemeConfig) -> ThemeConfig) {
+    override fun update(transform: (ThemeConfig) -> ThemeConfig) {
         viewModelScope.launch { repo.save(transform(config.value)) }
     }
-
-    fun reset() = update { ThemeConfig() }
 }
