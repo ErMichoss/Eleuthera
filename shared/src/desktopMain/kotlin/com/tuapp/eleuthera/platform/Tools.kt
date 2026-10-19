@@ -75,6 +75,15 @@ object Tools {
         mutex.withLock { ensureInstalledLocked() }
     }
 
+    /**
+     * Espera a que termine la instalación en curso, si la hay. Las descargas lo llaman antes
+     * de empezar: Deno se instala el último y, sin él, YouTube no da los formatos de audio
+     * ("Requested format is not available"), aunque las búsquedas ya funcionen.
+     */
+    suspend fun awaitIdle() {
+        mutex.withLock { }
+    }
+
     private suspend fun ensureInstalledLocked() {
         withContext(Dispatchers.IO) {
             _state.update { it.copy(error = null) }

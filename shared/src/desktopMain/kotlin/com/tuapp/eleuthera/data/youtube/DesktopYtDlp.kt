@@ -79,6 +79,8 @@ class DesktopYtDlp(
      * y devuelve el archivo. Si la corrutina se cancela, se mata yt-dlp y se borra [dir].
      */
     suspend fun downloadAudio(url: String, dir: File, onProgress: (Int) -> Unit): File {
+        // Si la app acaba de abrirse, primero que termine de instalar yt-dlp, ffmpeg y Deno.
+        Tools.awaitIdle()
         val format = downloadSettings.format.first()
         dir.mkdirs()
         val args = buildList {
