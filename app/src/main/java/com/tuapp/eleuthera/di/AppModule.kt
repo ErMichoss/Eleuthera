@@ -1,12 +1,13 @@
 package com.tuapp.eleuthera.di
 
 import android.content.Context
-import androidx.room.Room
 import androidx.work.WorkManager
 import com.tuapp.eleuthera.data.db.AppDatabase
 import com.tuapp.eleuthera.data.db.DownloadDao
 import com.tuapp.eleuthera.data.db.FolderTrackDao
 import com.tuapp.eleuthera.data.db.PlaylistDao
+import com.tuapp.eleuthera.data.db.buildAppDatabase
+import com.tuapp.eleuthera.data.settings.PreferenceStores
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,18 +22,16 @@ object AppModule {
     fun provideWorkManager(@ApplicationContext ctx: Context): WorkManager =
         WorkManager.getInstance(ctx)
 
+    /** La base de datos está en :shared; aquí solo se crea con el contexto de Android. */
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase =
-        Room.databaseBuilder(ctx, AppDatabase::class.java, "eleuthera.db")
-            .addMigrations(
-                AppDatabase.MIGRATION_1_2,
-                AppDatabase.MIGRATION_2_3,
-                AppDatabase.MIGRATION_3_4,
-                AppDatabase.MIGRATION_4_5,
-                AppDatabase.MIGRATION_5_6,
-            )
-            .build()
+    fun provideDatabase(@ApplicationContext ctx: Context): AppDatabase = buildAppDatabase(ctx)
+
+    /** Ajustes comunes (tema, descargas...), en filesDir/datastore como antes. */
+    @Provides
+    @Singleton
+    fun providePreferenceStores(@ApplicationContext ctx: Context): PreferenceStores =
+        PreferenceStores(ctx.filesDir)
 
     @Provides
     fun providePlaylistDao(db: AppDatabase): PlaylistDao = db.playlistDao()

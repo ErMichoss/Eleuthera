@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +50,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.tuapp.eleuthera.ui.library.LibraryScreen
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.common.LocalNowPlaying
+import com.tuapp.eleuthera.ui.common.androidArtLoader
+import com.tuapp.eleuthera.ui.platform.LocalArtLoader
+import com.tuapp.eleuthera.ui.platform.LocalRemoteImage
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import com.tuapp.eleuthera.ui.platform.LocalToast
 import com.tuapp.eleuthera.ui.library.TrackActions
 import com.tuapp.eleuthera.ui.player.TrimEditorScreen
 import com.tuapp.eleuthera.ui.player.MiniPlayer
@@ -64,6 +72,11 @@ import com.tuapp.eleuthera.ui.settings.ThemeViewModel
 import com.tuapp.eleuthera.ui.theme.AppTheme
 import com.tuapp.eleuthera.ui.update.UpdatePrompt
 import dagger.hilt.android.AndroidEntryPoint
+
+/** Miniaturas de YouTube en las pantallas comunes (Buscar): las pinta coil. */
+private val coilImage: @Composable (String, Modifier) -> Unit = { url, mod ->
+    AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = mod)
+}
 
 private enum class Section(val label: String, val icon: ImageVector) {
     SEARCH("Buscar", Icons.Default.Search),
@@ -171,7 +184,17 @@ private fun AppRoot(
     // Qué canción suena: lo leen las listas para resaltarla.
     val nowPlaying by playerVm.nowPlaying.collectAsStateWithLifecycle()
 
-    CompositionLocalProvider(LocalNowPlaying provides nowPlaying) {
+    // Las pantallas comunes (:shared) piden a la plataforma los avisos y las carátulas.
+    val context = LocalContext.current
+    val toast = remember(context) { { msg: String -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() } }
+    val artLoader = remember(context) { androidArtLoader(context.applicationContext) }
+
+    CompositionLocalProvider(
+        LocalNowPlaying provides nowPlaying,
+        LocalToast provides toast,
+        LocalArtLoader provides artLoader,
+        LocalRemoteImage provides coilImage,
+    ) {
         Box(Modifier.fillMaxSize()) {
             Scaffold(
                 bottomBar = {
@@ -202,12 +225,12 @@ private fun AppRoot(
                     // Playlists rápidas: botón arrastrable por encima de la pantalla actual.
                     if (quickAccess && section != Section.SETTINGS) {
                         // Solo se cargan las playlists mientras el botón está visible.
-                        val playlists by playlistsVm.playlists.collectAsStateWithLifecycle()
+                        val playlists by playlistsVm.controller.playlists.collectAsStateWithLifecycle()
                         val position by playlistsVm.quickButtonPosition.collectAsStateWithLifecycle()
                         QuickPlaylistsOverlay(
                             playlists = playlists,
                             actions = trackActions,
-                            loadTracks = playlistsVm::tracksOf,
+                            loadTracks = playlistsVm.controller::tracksOf,
                             savedPosition = position,
                             onPositionChange = playlistsVm::saveQuickButtonPosition,
                         )
@@ -219,7 +242,7 @@ private fun AppRoot(
             UpdatePrompt()
 
             playlistTarget?.let { target ->
-                AddToPlaylistDialog(target, playlistsVm, onDismiss = { playlistTarget = null })
+                AddToPlaylistDialog(target, playlistsVm.controller, onDismiss = { playlistTarget = null })
             }
 
             trackToTrim?.let { track ->

@@ -36,13 +36,13 @@ class PlayerViewModel @Inject constructor(
     private val player: PlayerController,
     skins: ProgressSkinRepository,
     private val lyricsReader: EmbeddedLyricsReader,
-) : ViewModel() {
+) : ViewModel(), PlayerUi {
 
     /** Diseño de la barra de progreso; null = la barra normal. */
-    val progressSkin: StateFlow<LoadedSkin?> =
+    override val progressSkin: StateFlow<LoadedSkin?> =
         skins.active.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val state: StateFlow<PlayerState> = player.state
+    override val state: StateFlow<PlayerState> = player.state
     private val _lyrics = MutableStateFlow(LyricsState())
     val lyrics: StateFlow<LyricsState> = _lyrics.asStateFlow()
 
@@ -53,7 +53,7 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, NowPlaying())
 
     /** Posición actual; solo se consulta mientras alguna pantalla la esté mostrando. */
-    val positionMs: StateFlow<Long> = flow {
+    override val positionMs: StateFlow<Long> = flow {
         while (true) {
             emit(player.positionMs)
             delay(500)
@@ -101,14 +101,14 @@ class PlayerViewModel @Inject constructor(
     fun updateTrack(oldTrackId: Long, updatedTrack: Track) =
         player.updateTrack(oldTrackId, updatedTrack)
 
-    fun toggle() = player.toggle()
-    fun next() = player.next()
-    fun previous() = player.previous()
-    fun seekTo(ms: Long) = player.seekTo(ms)
-    fun toggleShuffle() = player.toggleShuffle()
-    fun cycleRepeat() = player.cycleRepeat()
+    override fun toggle() = player.toggle()
+    override fun next() = player.next()
+    override fun previous() = player.previous()
+    override fun seekTo(ms: Long) = player.seekTo(ms)
+    override fun toggleShuffle() = player.toggleShuffle()
+    override fun cycleRepeat() = player.cycleRepeat()
 
-    fun jumpTo(index: Int) = player.jumpTo(index)
-    fun move(from: Int, to: Int) = player.move(from, to)
-    fun remove(index: Int) = player.removeAt(index)
+    override fun jumpTo(index: Int) = player.jumpTo(index)
+    override fun move(from: Int, to: Int) = player.move(from, to)
+    override fun remove(index: Int) = player.removeAt(index)
 }

@@ -1,25 +1,23 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
+# --- Compilación (en cualquier módulo: app, shared, desktop...) ---
+build/
+.gradle/
+.kotlin/
 .externalNativeBuild
 .cxx
+captures/
+*.iml
+
+# --- Configuración local: NUNCA se sube ---
+# Ruta del SDK y claves de MusicBrainz
 local.properties
-.idea/AndroidProjectSystem.xml
-.idea/compiler.xml
-.idea/gradle.xml
-.idea/inspectionProfiles/Project_Default.xml
-.idea/misc.xml
-.idea/vcs.xml
-app/build.gradle.kts
-app/build.gradle.kts
-app/build.gradle.kts
-gradle/libs.versions.toml
+# Almacén de claves de firma y cookies de YouTube
+*.jks
+*.keystore
+cookies*.txt
+cookies*.json
+
+# --- Android Studio / IntelliJ (configuración personal de cada uno) ---
+.idea/
+.DS_Store
+# APK firmadas que genera Android Studio
+app/release/

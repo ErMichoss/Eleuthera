@@ -1,27 +1,37 @@
-# Compila el APK firmado y lo publica en Releases al subir una etiqueta vX.Y.Z.
+# Al subir una etiqueta vX.Y.Z compila el APK firmado y los instaladores de escritorio
+# (.msi, .deb y .dmg) y los publica todos juntos en una release de GitHub.
+#
+# Secretos que usa (Settings > Secrets and variables > Actions):
+#   KEYSTORE_BASE64, SIGNING_STORE_PASSWORD, SIGNING_KEY_ALIAS, SIGNING_KEY_PASSWORD -> firma del APK
+#   MUSICBRAINZ_CLIENT_ID, MUSICBRAINZ_CLIENT_SECRET                                 -> MusicBrainz
 name: Release
 
 on:
   push:
     tags: ["v*"]
+  # Para probar los instaladores sin publicar nada (Actions > Release > Run workflow).
+  workflow_dispatch:
 
 permissions:
   contents: write   # necesario para crear la release
 
 jobs:
   apk:
+    name: Android
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      # Gradle pide el JDK 25 (gradle/gradle-daemon-jvm.properties).
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "25"
 
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Recuperar el almacén de claves
+        if: startsWith(github.ref, 'refs/tags/')
         run: echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -29,19 +39,113 @@ jobs:
       - name: Compilar APK firmado
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew :app:assembleRelease
         env:
           VERSION_NAME: ${{ github.ref_name }}
-          SIGNING_STORE_FILE: ${{ runner.temp }}/release.jks
+          SIGNING_STORE_FILE: ${{ startsWith(github.ref, 'refs/tags/') && format('{0}/release.jks', runner.temp) || '' }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          MUSICBRAINZ_CLIENT_ID: ${{ secrets.MUSICBRAINZ_CLIENT_ID }}
+          MUSICBRAINZ_CLIENT_SECRET: ${{ secrets.MUSICBRAINZ_CLIENT_SECRET }}
 
       - name: Renombrar
-        run: cp app/build/outputs/apk/release/app-release.apk "Eleuthera-${GITHUB_REF_NAME}.apk"
+        run: |
+          mkdir out
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+          cp "$apk" "out/Eleuthera-${GITHUB_REF_NAME}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*
+          if-no-files-found: error
+
+  desktop:
+    name: Escritorio (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            suffix: windows-x64
+          - name: linux
+            os: ubuntu-latest
+            suffix: linux-amd64
+          - name: mac-arm64
+            os: macos-latest        # Apple Silicon (M1 y posteriores)
+            suffix: mac-arm64
+          - name: mac-x64
+            os: macos-15-intel      # Mac con Intel
+            suffix: mac-x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 21: el que va dentro del instalador (jpackage). Se guarda su ruta antes de
+      # instalar el 25, que es con el que corre Gradle.
+      - uses: actions/setup-java@v4
+        id: jdk21
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Herramientas para el .deb
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fakeroot
+
+      - name: Crear instalador
+        run: |
+          chmod +x gradlew
+          ./gradlew :desktop:packageDistributionForCurrentOS
+        env:
+          VERSION_NAME: ${{ github.ref_name }}
+          PACKAGING_JAVA_HOME: ${{ steps.jdk21.outputs.path }}
+
+      - name: Renombrar
+        run: |
+          mkdir out
+          for f in $(find desktop/build/compose/binaries -type f \( -name '*.msi' -o -name '*.deb' -o -name '*.dmg' \)); do
+            cp "$f" "out/Eleuthera-${GITHUB_REF_NAME}-${{ matrix.suffix }}.${f##*.}"
+          done
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          path: out/*
+          if-no-files-found: error
+
+  release:
+    name: Publicar
+    needs: [apk, desktop]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Publicar release
         uses: softprops/action-gh-release@v2
         with:
-          files: Eleuthera-*.apk
+          files: dist/*
           generate_release_notes: true
+          body: |
+            **Cómo instalar**
+            - **Android**: el `.apk`.
+            - **Windows**: el `.msi` (no pide administrador).
+            - **Linux** (Debian, Ubuntu, Mint…): el `.deb`, con `sudo apt install ./Eleuthera-….deb`.
+            - **macOS**: `mac-arm64.dmg` para M1 o posteriores, `mac-x64.dmg` para Intel. La app no está firmada por Apple: la primera vez, clic derecho sobre Eleuthera > Abrir. Si dice que «está dañada», en Terminal: `xattr -dr com.apple.quarantine /Applications/Eleuthera.app`
