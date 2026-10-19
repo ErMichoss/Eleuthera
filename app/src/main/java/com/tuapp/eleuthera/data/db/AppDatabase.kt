@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistRequestEntity::class,
         FolderTrackEntity::class,
     ],
-    version = 4,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -55,6 +55,23 @@ abstract class AppDatabase : RoomDatabase() {
                             "`durationMs` INTEGER NOT NULL, `tagged` INTEGER NOT NULL, " +
                             "PRIMARY KEY(`documentId`))"
                 )
+            }
+        }
+
+        /** v5: conserva la ruta de migración para instalaciones que ya crearon esta tabla. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `track_lyrics` (`trackId` INTEGER NOT NULL, " +
+                        "`text` TEXT NOT NULL, PRIMARY KEY(`trackId`))"
+                )
+            }
+        }
+
+        /** v6: retira la tabla temporal usada para persistir letras descargadas de subtítulos. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `track_lyrics`")
             }
         }
     }

@@ -50,6 +50,7 @@ data class QueueItem(
 
 data class PlayerState(
     val mediaId: String? = null,
+    val mediaUri: String? = null,
     val title: String = "",
     val artist: String = "",
     /** Carátula incrustada en el MP3 (la miniatura del vídeo), si existe. */
@@ -223,6 +224,7 @@ class PlayerController @Inject constructor(
         }
         _state.value = PlayerState(
             mediaId = p.currentMediaItem?.mediaId,
+            mediaUri = p.currentMediaItem?.localConfiguration?.uri?.toString(),
             title = meta.title?.toString().orEmpty(),
             artist = meta.artist?.toString().orEmpty(),
             artwork = meta.artworkData,

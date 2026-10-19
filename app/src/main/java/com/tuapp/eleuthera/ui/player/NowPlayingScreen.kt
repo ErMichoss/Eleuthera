@@ -10,8 +10,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
@@ -67,6 +70,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 fun NowPlayingScreen(vm: PlayerViewModel, onClose: () -> Unit, modifier: Modifier = Modifier) {
     val state by vm.state.collectAsStateWithLifecycle()
     val position by vm.positionMs.collectAsStateWithLifecycle()
+    val lyrics by vm.lyrics.collectAsStateWithLifecycle()
     var showQueue by rememberSaveable { mutableStateOf(false) }
 
     Surface(modifier.fillMaxSize()) {
@@ -86,37 +90,82 @@ fun NowPlayingScreen(vm: PlayerViewModel, onClose: () -> Unit, modifier: Modifie
                 }
             }
 
-            // Zona central: carátula o cola.
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                if (showQueue) {
+            if (showQueue) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     QueueList(state, vm)
-                } else {
+                }
+                Text(
+                    state.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    state.artist,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                val skin by vm.progressSkin.collectAsStateWithLifecycle()
+                SeekBar(position, state.durationMs, skin, state.isPlaying, vm::seekTo)
+            } else {
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                ) {
                     Artwork(
                         state,
                         Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)),
                     )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        state.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        state.artist,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    val skin by vm.progressSkin.collectAsStateWithLifecycle()
+                    SeekBar(position, state.durationMs, skin, state.isPlaying, vm::seekTo)
+                    if (state.hasMedia) {
+                        LyricsCard(lyrics.text, lyrics.loading, lyrics.error)
+                    }
                 }
             }
-
-            Spacer(Modifier.height(16.dp))
-            Text(
-                state.title,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                state.artist,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            val skin by vm.progressSkin.collectAsStateWithLifecycle()
-            SeekBar(position, state.durationMs, skin, state.isPlaying, vm::seekTo)
             Controls(state, vm)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun LyricsCard(text: String?, loading: Boolean, error: String?) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 88.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Letra", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when {
+                    loading -> "Leyendo letras incrustadas…"
+                    error != null -> "No se pudieron leer las letras: $error"
+                    text.isNullOrBlank() ->
+                        "No hay letras incrustadas ni subtítulos compatibles disponibles para esta canción."
+                    else -> text
+                },
+                style = MaterialTheme.typography.bodyLarge,
+            )
         }
     }
 }
