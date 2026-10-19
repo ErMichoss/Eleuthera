@@ -412,6 +412,8 @@ app/src/main/java/com/tuapp/eleuthera/
 └── ui/               Pantallas Compose (search, library, playlists, player, settings…)
 ```
 
+> 📘 **Guía del código:** [`docs/estructura.pdf`](docs/estructura.pdf) explica cómo está organizado el proyecto, qué hace cada archivo y dónde tocar para cambiar cada cosa (fuente LaTeX en `docs/estructura.tex`).
+
 ### Compilar
 
 El proyecto tiene tres módulos: `app` (Android), `desktop` (Windows, Linux y macOS) y `shared` (lo común: modelos, datos y pantallas, con Kotlin Multiplatform). Gradle usa el JDK 25.
