@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -179,13 +180,18 @@ private fun SkinEditor(
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Eliminar") }
         }
 
-        val slots = if (skin.mode == TrackMode.REVEAL) {
-            listOf(SkinSlot.THUMB, SkinSlot.PLAYED)
-        } else SkinSlot.entries
+        val slots = when (skin.mode) {
+            TrackMode.REVEAL -> listOf(SkinSlot.THUMB, SkinSlot.PLAYED)
+            TrackMode.CHASE -> listOf(SkinSlot.THUMB, SkinSlot.END)
+            else -> listOf(SkinSlot.THUMB, SkinSlot.PLAYED, SkinSlot.REMAINING)
+        }
         slots.forEach { slot -> SlotRow(skin, slot, vm) }
 
         Text("Modo de las barras", style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             TrackMode.entries.forEach { mode ->
                 FilterChip(
                     selected = skin.mode == mode,
@@ -196,14 +202,27 @@ private fun SkinEditor(
         }
         Hint(skin.mode.description)
 
+        if (skin.mode == TrackMode.CHASE) {
+            ColorRow(
+                "Color de los laterales",
+                skin.sideColor ?: MaterialTheme.colorScheme.primary.toArgb(),
+                accentSwatches,
+            ) { vm.setSideColor(skin.id, it) }
+            ColorRow(
+                "Color del centro",
+                skin.centerColor ?: MaterialTheme.colorScheme.primary.toArgb(),
+                accentSwatches,
+            ) { vm.setCenterColor(skin.id, it) }
+        }
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Girar el indicador al reproducir", modifier = Modifier.weight(1f))
             Switch(checked = skin.spinThumb, onCheckedChange = { vm.setSpin(skin.id, it) })
         }
 
         Hint(
-            "Indicador: PNG o WebP cuadrado, de 64 a 512 px. Barras: PNG o WebP horizontal, " +
-                    "de 16 a 64 px de alto. Máximo 1 MB por imagen. Lo que no tenga imagen usa los colores del tema."
+            "Indicador e imagen final: PNG o WebP cuadrado, de 64 a 512 px. Barras: PNG o WebP " +
+                    "horizontal, de 16 a 64 px de alto. Máximo 1 MB por imagen."
         )
     }
 }

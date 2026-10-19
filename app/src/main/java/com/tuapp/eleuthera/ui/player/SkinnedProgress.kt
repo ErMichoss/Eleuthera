@@ -42,6 +42,8 @@ import kotlin.math.roundToInt
 
 private val TrackHeight = 12.dp
 private val ThumbSize = 32.dp
+private val EndMarkerSize = 40.dp
+private val MiniThumbSize = 24.dp
 
 /**
  * Barra de progreso dibujada con las imágenes del diseño elegido. Las partes sin imagen
@@ -61,6 +63,8 @@ fun SkinnedSeekBar(
     val scrubEnd by rememberUpdatedState(onScrubEnd)
     val playedColor = MaterialTheme.colorScheme.primary
     val remainingColor = MaterialTheme.colorScheme.surfaceVariant
+    val sideColor = skin.skin.sideColor?.let { Color(it) } ?: playedColor
+    val centerColor = skin.skin.centerColor?.let { Color(it) } ?: playedColor
 
     // Giro del indicador: avanza mientras suena y se queda quieto en pausa.
     // Si se desactiva el giro, vuelve a su posición original por el camino más corto.
@@ -116,6 +120,8 @@ fun SkinnedSeekBar(
             height = trackH,
             playedColor = playedColor,
             remainingColor = remainingColor,
+            sideColor = sideColor,
+            centerColor = centerColor,
         )
 
         // Indicador
@@ -134,20 +140,76 @@ fun SkinnedSeekBar(
         } else {
             drawCircle(playedColor, radius = 10.dp.toPx(), center = Offset(cx, cy))
         }
+
+        // Mantiene visible la imagen de destino incluso cuando el indicador llega al final.
+        if (skin.skin.mode == TrackMode.CHASE) {
+            skin.end?.let { image ->
+                val s = EndMarkerSize.toPx()
+                drawImage(
+                    image = image,
+                    dstOffset = IntOffset(
+                        (pad + width - s / 2).roundToInt(),
+                        (cy - s / 2).roundToInt(),
+                    ),
+                    dstSize = IntSize(s.roundToInt(), s.roundToInt()),
+                )
+            }
+        }
     }
 }
 
-/** Solo la barra, sin indicador ni gestos (mini-reproductor). */
+/** Barra compacta del mini-reproductor, con el indicador propio si está configurado. */
 @Composable
 fun SkinnedTrack(fraction: Float, skin: LoadedSkin, modifier: Modifier = Modifier) {
     val playedColor = MaterialTheme.colorScheme.primary
     val remainingColor = MaterialTheme.colorScheme.surfaceVariant
-    Canvas(modifier.fillMaxWidth().height(6.dp)) {
+    val sideColor = skin.skin.sideColor?.let { Color(it) } ?: playedColor
+    val centerColor = skin.skin.centerColor?.let { Color(it) } ?: playedColor
+    val showEnd = skin.skin.mode == TrackMode.CHASE && skin.end != null
+    val thumb = skin.thumb
+    val showThumb = thumb != null
+    val canvasHeight = when {
+        showEnd -> EndMarkerSize
+        showThumb -> MiniThumbSize
+        else -> 6.dp
+    }
+    Canvas(modifier.fillMaxWidth().height(canvasHeight)) {
+        val trackHeight = 6.dp.toPx()
+        val trackTop = (size.height - trackHeight) / 2
+        val endSize = if (showEnd) EndMarkerSize.toPx() else 0f
+        val thumbSize = if (showThumb) MiniThumbSize.toPx() else 0f
+        val trackLeft = thumbSize / 2
+        val trackRight = size.width - endSize / 2
+        val trackWidth = (trackRight - trackLeft).coerceAtLeast(0f)
         drawSkinTrack(
             fraction = fraction.coerceIn(0f, 1f), skin = skin,
-            left = 0f, top = 0f, width = size.width, height = size.height,
-            playedColor = playedColor, remainingColor = remainingColor, rounded = false,
+            left = trackLeft, top = trackTop, width = trackWidth, height = trackHeight,
+            playedColor = playedColor, remainingColor = remainingColor,
+            sideColor = sideColor, centerColor = centerColor, rounded = false,
         )
+        if (showEnd) {
+            val image = requireNotNull(skin.end)
+            val markerSize = endSize
+            drawImage(
+                image = image,
+                dstOffset = IntOffset(
+                    (trackRight - markerSize / 2).roundToInt(),
+                    ((size.height - markerSize) / 2).roundToInt(),
+                ),
+                dstSize = IntSize(markerSize.roundToInt(), markerSize.roundToInt()),
+            )
+        }
+        if (thumb != null) {
+            val thumbCenter = trackLeft + trackWidth * fraction.coerceIn(0f, 1f)
+            drawImage(
+                image = thumb,
+                dstOffset = IntOffset(
+                    (thumbCenter - thumbSize / 2).roundToInt(),
+                    ((size.height - thumbSize) / 2).roundToInt(),
+                ),
+                dstSize = IntSize(thumbSize.roundToInt(), thumbSize.roundToInt()),
+            )
+        }
     }
 }
 
@@ -162,6 +224,8 @@ private fun DrawScope.drawSkinTrack(
     height: Float,
     playedColor: Color,
     remainingColor: Color,
+    sideColor: Color,
+    centerColor: Color,
     rounded: Boolean = true,
 ) {
     val split = left + width * fraction
@@ -174,6 +238,17 @@ private fun DrawScope.drawSkinTrack(
     clipPath(path) {
         val mode = skin.skin.mode
         val played = skin.played
+
+        if (mode == TrackMode.CHASE) {
+            drawRect(sideColor, Offset(left, top), Size(width, height))
+            val middleHeight = height * 0.42f
+            val middleTop = top + (height - middleHeight) / 2
+            drawRect(remainingColor, Offset(left, middleTop), Size(width, middleHeight))
+            clipRect(left, middleTop, split, middleTop + middleHeight) {
+                drawRect(centerColor, Offset(left, middleTop), Size(width, middleHeight))
+            }
+            return@clipPath
+        }
 
         if (mode == TrackMode.REVEAL && played != null) {
             // Una sola imagen a lo ancho: apagada y en gris lo pendiente, a todo color lo escuchado.

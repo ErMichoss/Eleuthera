@@ -42,6 +42,8 @@ class ProgressSkinViewModel @Inject constructor(
     fun delete(id: String) = launch { repo.delete(id) }
     fun setMode(id: String, mode: TrackMode) = launch { repo.setMode(id, mode) }
     fun setSpin(id: String, spin: Boolean) = launch { repo.setSpin(id, spin) }
+    fun setSideColor(id: String, color: Int) = launch { repo.setSideColor(id, color) }
+    fun setCenterColor(id: String, color: Int) = launch { repo.setCenterColor(id, color) }
     fun clearImage(id: String, slot: SkinSlot) = launch { repo.clearImage(id, slot) }
 
     fun setImage(id: String, slot: SkinSlot, uri: Uri) = launch {
