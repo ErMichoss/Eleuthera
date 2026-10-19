@@ -138,10 +138,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
-    //Llamadas de API
-    implementation("com.squareup.retrofit2:retrofit:3.0.0")
-    implementation("com.squareup.retrofit2:converter-gson:3.0.0")
-
-    //OkHttp3 logger
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    // MusicBrainz ya no usa Retrofit ni OkHttp: su cliente está en :shared (HttpURLConnection).
 }

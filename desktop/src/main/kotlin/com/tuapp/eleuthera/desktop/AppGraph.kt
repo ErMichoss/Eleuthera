@@ -1,5 +1,7 @@
 package com.tuapp.eleuthera.desktop
 
+import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzService
+import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzController
 import com.tuapp.eleuthera.data.db.AppDatabase
 import com.tuapp.eleuthera.data.db.buildAppDatabase
 import com.tuapp.eleuthera.data.download.DesktopDownloads
@@ -71,6 +73,8 @@ object AppGraph {
     val themeUi by lazy { DesktopThemeUi(themeRepository) }
     val downloadSettingsUi by lazy { DesktopDownloadSettingsUi(downloadSettings) }
     val skins by lazy { ProgressSkinController(uiScope, skinStore) }
+    // Explorador de MusicBrainz (el mismo que en Android). Sin claves: en escritorio no se inicia sesión.
+    val musicBrainz by lazy { MusicBrainzController(uiScope, MusicBrainzService(appVersion = appVersion)) }
     val search by lazy {
         SearchController(
             uiScope,

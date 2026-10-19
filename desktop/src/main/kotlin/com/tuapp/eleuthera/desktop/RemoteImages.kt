@@ -52,13 +52,20 @@ private object RemoteImages {
     }?.also { synchronized(memory) { memory[url] = it } }
 }
 
-/** Para LocalRemoteImage: la imagen de [url] recortada, o un hueco gris mientras carga. */
+/** Marca de "todavía cargando" para [desktopRemoteImage]. */
+private object Loading
+
+/**
+ * Para LocalRemoteImage: la imagen de [url] recortada, con un hueco gris mientras carga. Si no
+ * se puede cargar queda transparente, para que se vea lo que haya debajo (p. ej. un icono).
+ */
 val desktopRemoteImage: @Composable (String, Modifier) -> Unit = { url, modifier ->
-    val image by produceState(RemoteImages.cached(url), url) {
-        if (url.isNotBlank()) value = RemoteImages.load(url)
+    val state by produceState<Any?>(RemoteImages.cached(url) ?: Loading, url) {
+        if (value === Loading) value = if (url.isBlank()) null else RemoteImages.load(url)
     }
-    Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
-        image?.let {
+    val loading = state === Loading
+    Box(if (loading) modifier.background(MaterialTheme.colorScheme.surfaceVariant) else modifier) {
+        (state as? ImageBitmap)?.let {
             Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
         }
     }

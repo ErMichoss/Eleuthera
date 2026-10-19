@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.ManageSearch
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.LinearScale
 import androidx.compose.material.icons.filled.Palette
@@ -54,6 +56,7 @@ import com.tuapp.eleuthera.platform.DesktopPaths
 import com.tuapp.eleuthera.platform.FileUri
 import com.tuapp.eleuthera.platform.Tools
 import com.tuapp.eleuthera.ui.platform.LocalToast
+import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzContent
 import com.tuapp.eleuthera.ui.settings.AppearanceSettingsPage
 import com.tuapp.eleuthera.ui.settings.DownloadSettingsPage
 import com.tuapp.eleuthera.ui.settings.ProgressSkinSettingsPage
@@ -77,6 +80,7 @@ private enum class SettingsPage(val title: String, val icon: ImageVector) {
     LIBRARY("Biblioteca", Icons.Default.LibraryMusic),
     DOWNLOADS("Descargas", Icons.Default.Download),
     ACCOUNT("Cuenta de YouTube", Icons.Default.AccountCircle),
+    MUSICBRAINZ("MusicBrainz", Icons.AutoMirrored.Filled.ManageSearch),
     ABOUT("Acerca de", Icons.Default.Info),
 }
 
@@ -100,6 +104,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         SettingsPage.LIBRARY -> LibrarySettingsPage(back, pageModifier)
         SettingsPage.DOWNLOADS -> DownloadSettingsPage(AppGraph.downloadSettingsUi, back, pageModifier)
         SettingsPage.ACCOUNT -> AccountPage(back, pageModifier)
+        SettingsPage.MUSICBRAINZ -> MusicBrainzPage(back, pageModifier)
         SettingsPage.ABOUT -> AboutPage(back, pageModifier)
         null -> SettingsMenu(pageModifier) { page = it }
     }
@@ -123,6 +128,7 @@ private fun SettingsMenu(modifier: Modifier, onOpen: (SettingsPage) -> Unit) {
         },
         SettingsPage.DOWNLOADS to format.label,
         SettingsPage.ACCOUNT to if (cookies) "Sesión guardada" else "Sin cookies",
+        SettingsPage.MUSICBRAINZ to "Buscar metadatos de canciones y álbumes",
         SettingsPage.ABOUT to "Versión $appVersion",
     )
 
@@ -406,5 +412,25 @@ private fun InfoRow(label: String, value: String) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+    }
+}
+
+/**
+ * MusicBrainz: la misma pantalla que en Android. Tiene su propia lista con scroll, así que no
+ * va dentro de SettingsPageScaffold (que ya desplaza su contenido).
+ */
+@Composable
+private fun MusicBrainzPage(onBack: () -> Unit, modifier: Modifier) {
+    Column(modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+            }
+            Text("MusicBrainz", style = MaterialTheme.typography.headlineSmall)
+        }
+        MusicBrainzContent(AppGraph.musicBrainz, Modifier.weight(1f))
     }
 }
