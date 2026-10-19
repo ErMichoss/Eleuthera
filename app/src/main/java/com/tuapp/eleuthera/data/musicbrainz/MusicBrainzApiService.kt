@@ -44,4 +44,12 @@ interface MusicBrainzApiService {
         @Query("fmt") format: String = "json",
         @Query("inc") inc: String = "genres+user-tags+artist-rels+work-rels+releases"
     ): Recording
+
+    @Headers("User-Agent: MusicBrainzExplorerAndroid/1.0.0 (contacto@ejemplo.com)")
+    @GET("ws/2/release/{id}")
+    suspend fun getReleaseDetails(
+        @Path("id") id: String,
+        @Query("inc") inc: String = "recordings+media+artist-credits",
+        @Query("fmt") format: String = "json"
+    ): Release
 }
