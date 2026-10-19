@@ -138,7 +138,9 @@ private fun PlaylistGrid(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                // Columnas de unos 160 dp: en el móvil salen 2 (como antes) y en una ventana ancha
+                // de escritorio salen más, en vez de dos portadas gigantes.
+                columns = GridCells.Adaptive(minSize = 160.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
