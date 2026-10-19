@@ -18,9 +18,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -53,6 +55,10 @@ class DesktopDownloads(
     /** Todas las descargas de esta sesión, en el orden en que se pidieron. */
     private val _items = MutableStateFlow<List<Item>>(emptyList())
     val items: StateFlow<List<Item>> = _items.asStateFlow()
+
+    /** Estado de cada descarga por id de vídeo (lo que muestra Buscar en cada resultado). */
+    val statuses: Flow<Map<String, DownloadStatus>> =
+        _items.map { list -> list.associate { it.track.id to it.status } }
 
     /** Pide la canción. Si ya está en cola o descargándose, no hace nada. */
     fun enqueue(track: RemoteTrack, playlist: String? = null, index: Int = 0) = synchronized(lock) {

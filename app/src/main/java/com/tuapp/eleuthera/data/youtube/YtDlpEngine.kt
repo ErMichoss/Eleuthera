@@ -55,8 +55,6 @@ private data class FlatResult(
     val thumbnails: List<Thumbnail>? = null,
 )
 
-/** Resultado de resolver una URL: un vídeo suelto o una playlist expandida. */
-data class Resolved(val playlistTitle: String?, val tracks: List<RemoteTrack>)
 
 /**
  * Única puerta de entrada a yt-dlp. Equivale a la línea `yt-dlp.exe ...` del script original.

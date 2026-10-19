@@ -11,14 +11,20 @@ import com.tuapp.eleuthera.data.settings.PlayerSettings
 import com.tuapp.eleuthera.data.settings.PreferenceStores
 import com.tuapp.eleuthera.data.settings.ThemeRepository
 import com.tuapp.eleuthera.data.youtube.DesktopYtDlp
+import com.tuapp.eleuthera.data.youtube.Resolved
+import com.tuapp.eleuthera.domain.model.DownloadStatus
+import com.tuapp.eleuthera.domain.model.RemoteTrack
 import com.tuapp.eleuthera.platform.DesktopPaths
 import com.tuapp.eleuthera.platform.Tools
 import com.tuapp.eleuthera.playback.DesktopPlayerController
 import com.tuapp.eleuthera.ui.playlists.PlaylistsController
+import com.tuapp.eleuthera.ui.search.SearchBackend
+import com.tuapp.eleuthera.ui.search.SearchController
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -50,6 +56,18 @@ object AppGraph {
     val playerUi by lazy { DesktopPlayerUi(player) }
     val libraryModel by lazy { DesktopLibraryModel(library) }
     val playlists by lazy { PlaylistsController(uiScope, playlistStore) }
+    val search by lazy {
+        SearchController(
+            uiScope,
+            object : SearchBackend {
+                override suspend fun resolve(target: String): Resolved = ytDlp.resolve(target)
+                override fun downloads(): Flow<Map<String, DownloadStatus>> = downloads.statuses
+                override suspend fun enqueue(track: RemoteTrack, playlist: String?, index: Int) =
+                    downloads.enqueue(track, playlist, index)
+                override fun cancel(videoId: String) = downloads.cancel(videoId)
+            },
+        )
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

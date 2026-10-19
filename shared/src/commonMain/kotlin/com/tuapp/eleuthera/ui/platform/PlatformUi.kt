@@ -1,7 +1,9 @@
 package com.tuapp.eleuthera.ui.platform
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import com.tuapp.eleuthera.platform.PlatformUri
 
@@ -24,3 +26,11 @@ val LocalToast = staticCompositionLocalOf<(String) -> Unit> { {} }
 
 /** Carátula reducida de un archivo de música, o null si no tiene. */
 val LocalArtLoader = staticCompositionLocalOf<suspend (PlatformUri) -> ImageBitmap?> { { null } }
+
+/**
+ * Imagen de internet (miniaturas de YouTube), recortada para llenar [modifier]. En Android
+ * la pinta coil; en escritorio, un cargador propio. Por defecto, un hueco vacío.
+ */
+val LocalRemoteImage = staticCompositionLocalOf<@Composable (url: String, modifier: Modifier) -> Unit> {
+    { _, modifier -> Box(modifier) }
+}

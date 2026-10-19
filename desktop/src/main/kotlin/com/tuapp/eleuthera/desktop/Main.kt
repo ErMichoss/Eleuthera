@@ -20,7 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material3.Icon
@@ -54,6 +54,9 @@ import com.tuapp.eleuthera.ui.common.LocalNowPlaying
 import com.tuapp.eleuthera.ui.library.LibraryContent
 import com.tuapp.eleuthera.ui.library.TrackActions
 import com.tuapp.eleuthera.ui.platform.LocalArtLoader
+import com.tuapp.eleuthera.ui.platform.LocalRemoteImage
+import com.tuapp.eleuthera.ui.search.SearchContent
+import androidx.compose.material3.VerticalDivider
 import com.tuapp.eleuthera.ui.platform.LocalToast
 import com.tuapp.eleuthera.ui.player.MiniPlayer
 import com.tuapp.eleuthera.ui.player.NowPlayingScreen
@@ -87,11 +90,11 @@ fun main() {
     }
 }
 
-/** Secciones de la barra lateral. Buscar y Ajustes llegan en la fase 5c. */
+/** Secciones de la barra lateral, como la barra inferior de Android. Ajustes llega en la 5c. */
 private enum class Section(val label: String, val icon: ImageVector) {
+    SEARCH("Buscar", Icons.Default.Search),
     LIBRARY("Biblioteca", Icons.Default.LibraryMusic),
     PLAYLISTS("Playlists", Icons.AutoMirrored.Filled.PlaylistPlay),
-    DOWNLOADS("Descargar", Icons.Default.Download),
     FOLDERS("Carpetas", Icons.Default.Folder),
 }
 
@@ -141,6 +144,7 @@ private fun App() {
         LocalNowPlaying provides nowPlaying,
         LocalToast provides toast,
         LocalArtLoader provides desktopArtLoader,
+        LocalRemoteImage provides desktopRemoteImage,
     ) {
         Box(Modifier.fillMaxSize()) {
             Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
@@ -175,7 +179,11 @@ private fun App() {
                                         FolderPicker.chooseImage()?.let { onPicked(FileUri(it)) }
                                     },
                                 )
-                                Section.DOWNLOADS -> DownloadsScreen(Modifier.fillMaxSize())
+                                Section.SEARCH -> Row(Modifier.fillMaxSize()) {
+                                    SearchContent(AppGraph.search, Modifier.weight(1f).fillMaxHeight())
+                                    VerticalDivider()
+                                    DownloadQueuePanel(Modifier.width(360.dp).fillMaxHeight())
+                                }
                                 Section.FOLDERS -> FoldersScreen(Modifier.fillMaxSize())
                             }
                         }

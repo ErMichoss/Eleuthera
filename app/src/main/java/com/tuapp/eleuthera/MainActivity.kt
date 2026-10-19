@@ -51,6 +51,9 @@ import com.tuapp.eleuthera.ui.library.LibraryScreen
 import com.tuapp.eleuthera.ui.common.LocalNowPlaying
 import com.tuapp.eleuthera.ui.common.androidArtLoader
 import com.tuapp.eleuthera.ui.platform.LocalArtLoader
+import com.tuapp.eleuthera.ui.platform.LocalRemoteImage
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import com.tuapp.eleuthera.ui.platform.LocalToast
 import com.tuapp.eleuthera.ui.library.TrackActions
 import com.tuapp.eleuthera.ui.player.MiniPlayer
@@ -67,6 +70,11 @@ import com.tuapp.eleuthera.ui.settings.ThemeViewModel
 import com.tuapp.eleuthera.ui.theme.AppTheme
 import com.tuapp.eleuthera.ui.update.UpdatePrompt
 import dagger.hilt.android.AndroidEntryPoint
+
+/** Miniaturas de YouTube en las pantallas comunes (Buscar): las pinta coil. */
+private val coilImage: @Composable (String, Modifier) -> Unit = { url, mod ->
+    AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = mod)
+}
 
 private enum class Section(val label: String, val icon: ImageVector) {
     SEARCH("Buscar", Icons.Default.Search),
@@ -176,6 +184,7 @@ private fun AppRoot(
         LocalNowPlaying provides nowPlaying,
         LocalToast provides toast,
         LocalArtLoader provides artLoader,
+        LocalRemoteImage provides coilImage,
     ) {
         Box(Modifier.fillMaxSize()) {
             Scaffold(
