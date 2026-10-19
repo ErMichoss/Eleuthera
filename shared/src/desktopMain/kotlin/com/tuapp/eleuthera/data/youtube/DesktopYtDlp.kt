@@ -1,17 +1,20 @@
 package com.tuapp.eleuthera.data.youtube
 
+import com.tuapp.eleuthera.data.settings.DesktopCookieStore
 import com.tuapp.eleuthera.data.settings.DownloadSettings
 import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.RemoteTrack
 import com.tuapp.eleuthera.platform.Tools
 import com.tuapp.eleuthera.playback.Ffmpeg
 import java.io.File
+import java.nio.file.Files
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -46,7 +49,10 @@ private data class FlatResult(
  * yt-dlp en escritorio: lo mismo que YtDlpEngine en Android, pero lanzando el programa
  * descargado por [Tools] en vez de la librería de Android. Mismas opciones, mismo resultado.
  */
-class DesktopYtDlp(private val downloadSettings: DownloadSettings) {
+class DesktopYtDlp(
+    private val downloadSettings: DownloadSettings,
+    private val cookies: DesktopCookieStore,
+) {
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -101,11 +107,47 @@ class DesktopYtDlp(private val downloadSettings: DownloadSettings) {
     }
 
     /**
+     * Vuelca en [dest] (formato Netscape) las cookies de [browser] leídas por yt-dlp con
+     * --cookies-from-browser. Se hace una búsqueda mínima para que yt-dlp cargue el navegador
+     * y, al terminar, guarde su "tarro" de cookies en el archivo de --cookies.
+     */
+    suspend fun exportBrowserCookies(browser: String, dest: File) = withContext(Dispatchers.IO) {
+        val yt = Tools.ytDlp() ?: error("yt-dlp no está instalado todavía")
+        val process = ProcessBuilder(
+            yt, "--encoding", "utf-8", "--no-warnings",
+            "--cookies-from-browser", browser, "--cookies", dest.absolutePath,
+            "--skip-download", "--flat-playlist", "--playlist-items", "1", "ytsearch1:eleuthera",
+        ).redirectErrorStream(true).apply { environment()["PYTHONIOENCODING"] = "utf-8" }.start()
+        val out = process.inputStream.bufferedReader(Charsets.UTF_8).readText()
+        if (!process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            error("yt-dlp no terminó a tiempo")
+        }
+        if (!dest.isFile || dest.length() == 0L) {
+            val reason = errorMessage(out, process.exitValue())
+            error(
+                when {
+                    "Could not copy" in reason || "database is locked" in reason ->
+                        "Cierra el navegador del todo y vuelve a intentarlo."
+                    "DPAPI" in reason || "decrypt" in reason.lowercase() ->
+                        "No se pueden leer las cookies de este navegador en Windows. Prueba con Firefox o importa el archivo."
+                    "could not find" in reason.lowercase() ->
+                        "No se encuentra ese navegador o su perfil."
+                    else -> reason
+                }
+            )
+        }
+    }
+
+    /**
      * Lanza yt-dlp con [args]. Si se pasa [onLine], la salida se va entregando línea a línea
      * (progreso); si no, se devuelve entera (JSON). Lanza excepción con el error de yt-dlp.
      */
     private suspend fun exec(args: List<String>, onLine: ((String) -> Unit)? = null): String = coroutineScope {
         val yt = Tools.ytDlp() ?: error("yt-dlp no está instalado todavía")
+        // Copia propia de las cookies para este proceso (yt-dlp reescribe el archivo).
+        val cookieDir = if (cookies.present.value) Files.createTempDirectory("eleuthera-").toFile() else null
+        val cookieFile = cookieDir?.let { cookies.snapshotInto(it) }
         val command = buildList {
             add(yt)
             addAll(listOf("--encoding", "utf-8"))
@@ -118,6 +160,7 @@ class DesktopYtDlp(private val downloadSettings: DownloadSettings) {
             if (Tools.isBundled(yt) && deno != null && File(deno).isAbsolute) {
                 addAll(listOf("--js-runtimes", "deno:$deno"))
             }
+            cookieFile?.let { addAll(listOf("--cookies", it.absolutePath)) }
             addAll(args)
         }
         val process = ProcessBuilder(command)
@@ -149,6 +192,7 @@ class DesktopYtDlp(private val downloadSettings: DownloadSettings) {
                 process.descendants().forEach { it.destroyForcibly() }
                 process.destroyForcibly()
             }
+            cookieDir?.deleteRecursively()
         }
     }
 

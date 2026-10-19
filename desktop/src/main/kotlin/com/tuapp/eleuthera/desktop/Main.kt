@@ -44,6 +44,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -55,6 +57,7 @@ import com.tuapp.eleuthera.ui.library.LibraryContent
 import com.tuapp.eleuthera.ui.library.TrackActions
 import com.tuapp.eleuthera.ui.platform.LocalArtLoader
 import com.tuapp.eleuthera.ui.platform.LocalRemoteImage
+import com.tuapp.eleuthera.ui.platform.decodeImage
 import com.tuapp.eleuthera.ui.search.SearchContent
 import androidx.compose.material3.VerticalDivider
 import com.tuapp.eleuthera.ui.platform.LocalToast
@@ -82,12 +85,21 @@ fun main() {
                 exitApplication()
             },
             title = "Eleuthera",
+            icon = appIcon,
             state = rememberWindowState(width = 1200.dp, height = 800.dp),
         ) {
             val theme by AppGraph.themeRepository.config.collectAsState(ThemeConfig())
             AppTheme(theme) { App() }
         }
     }
+}
+
+/** Icono de la ventana y de la barra de tareas (el mismo gato que en Android). */
+private val appIcon: Painter? by lazy {
+    Section::class.java.getResourceAsStream("/icon.png")
+        ?.use { it.readBytes() }
+        ?.let(::decodeImage)
+        ?.let(::BitmapPainter)
 }
 
 /** Secciones de la barra lateral, como la barra inferior de Android. */
@@ -170,7 +182,7 @@ private fun App() {
                                         scope.launch { AppGraph.libraryModel.delete(track)?.let(toast) }
                                     },
                                     emptyHint = "Aún no hay música.\n" +
-                                            "Busca algo para descargar o añade una carpeta en Ajustes > Biblioteca.",
+                                        "Busca algo para descargar o añade una carpeta en Ajustes > Biblioteca.",
                                 )
                                 Section.PLAYLISTS -> PlaylistsContent(
                                     vm = AppGraph.playlists,
@@ -180,7 +192,11 @@ private fun App() {
                                     },
                                 )
                                 Section.SEARCH -> Row(Modifier.fillMaxSize()) {
-                                    SearchContent(AppGraph.search, Modifier.weight(1f).fillMaxHeight())
+                                    SearchContent(
+                                        AppGraph.search,
+                                        Modifier.weight(1f).fillMaxHeight(),
+                                        header = { ImportPanel() },
+                                    )
                                     VerticalDivider()
                                     DownloadQueuePanel(Modifier.width(360.dp).fillMaxHeight())
                                 }
@@ -194,6 +210,9 @@ private fun App() {
                     }
                 }
             }
+
+            // Aviso de versión nueva publicada en GitHub.
+            UpdatePrompt()
 
             playlistTarget?.let { target ->
                 AddToPlaylistDialog(target, AppGraph.playlists, onDismiss = { playlistTarget = null })

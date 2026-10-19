@@ -32,15 +32,17 @@ android {
         // yt-dlp, Python y FFmpeg son binarios nativos: limita las ABI para no inflar el APK.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
 
+        // Claves de MusicBrainz: en local, de local.properties; en GitHub Actions, de los
+        // secretos del repositorio. Nunca se escriben en el código.
         buildConfigField(
             "String",
             "MUSICBRAINZ_CLIENT_ID",
-            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_ID") ?: ""}\""
+            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_ID") ?: System.getenv("MUSICBRAINZ_CLIENT_ID") ?: ""}\""
         )
         buildConfigField(
             "String",
             "MUSICBRAINZ_CLIENT_SECRET",
-            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_SECRET") ?: ""}\""
+            "\"${localProperties.getProperty("MUSICBRAINZ_CLIENT_SECRET") ?: System.getenv("MUSICBRAINZ_CLIENT_SECRET") ?: ""}\""
         )
 
         buildFeatures {
@@ -50,7 +52,8 @@ android {
 
     // Firma de release: solo se usa si existen las variables de entorno (las pone GitHub
     // Actions a partir de los secretos del repositorio). El almacén de claves nunca va al repo.
-    val ciKeystore = System.getenv("SIGNING_STORE_FILE")
+    // (En una ejecución manual del workflow llega vacía: entonces el APK sale sin firmar.)
+    val ciKeystore = System.getenv("SIGNING_STORE_FILE")?.takeIf { it.isNotBlank() }
     signingConfigs {
         if (ciKeystore != null) {
             create("release") {

@@ -56,6 +56,8 @@
 
 ## Instalación
 
+### Android
+
 1. En el móvil, abre la [última versión](https://github.com/ErMichoss/Eleuthera/releases/latest) y descarga el archivo `Eleuthera-vX.Y.Z.apk`.
 2. Ábrelo. Si Android lo pide, permite **instalar aplicaciones de origen desconocido** para tu navegador o gestor de archivos.
 3. Pulsa **Instalar**.
@@ -67,6 +69,23 @@
 Descarga el APK de la versión nueva y ábrelo: se instala encima de la anterior **sin perder** playlists, ajustes ni música.
 
 > ⚠️ Si alguna vez instalaste la app desde Android Studio, esa copia está firmada con otra clave y Android no dejará actualizarla. Desinstálala primero: los MP3 se conservan en `Música/Eleuthera`, pero se pierden las playlists y los ajustes.
+
+### Windows, Linux y macOS
+
+En la [última versión](https://github.com/ErMichoss/Eleuthera/releases/latest) descarga el instalador de tu sistema:
+
+| Sistema | Archivo | Cómo se instala |
+|---|---|---|
+| **Windows 10/11** | `…-windows-x64.msi` | Ábrelo. Se instala para tu usuario, sin pedir administrador. |
+| **Linux** (Debian, Ubuntu, Mint…) | `…-linux-amd64.deb` | `sudo apt install ./Eleuthera-vX.Y.Z-linux-amd64.deb` |
+| **macOS** con M1 o posterior | `…-mac-arm64.dmg` | Abre el `.dmg` y arrastra Eleuthera a Aplicaciones. |
+| **macOS** con Intel | `…-mac-x64.dmg` | Igual que el anterior. |
+
+No hace falta instalar Java: va incluido. La primera vez que se abre, la app descarga sola yt-dlp, FFmpeg y Deno; tarda un poco según la conexión.
+
+> 🍎 La versión de macOS no está firmada por Apple. La primera vez, haz clic derecho sobre Eleuthera > **Abrir**. Si dice que la app «está dañada», ejecuta en Terminal: `xattr -dr com.apple.quarantine /Applications/Eleuthera.app`
+
+**Actualizar:** la app avisa cuando hay una versión nueva. El instalador nuevo se pone encima del anterior sin perder nada.
 
 ---
 
@@ -395,8 +414,18 @@ app/src/main/java/com/tuapp/eleuthera/
 
 ### Compilar
 
-1. Clona el repositorio y ábrelo con Android Studio.
-2. Pulsa ▶ con un móvil conectado (mejor que el emulador).
+El proyecto tiene tres módulos: `app` (Android), `desktop` (Windows, Linux y macOS) y `shared` (lo común: modelos, datos y pantallas, con Kotlin Multiplatform). Gradle usa el JDK 25.
+
+**Android:** abre el proyecto con Android Studio y pulsa ▶ con un móvil conectado (mejor que el emulador).
+
+**Escritorio:**
+
+```bash
+./gradlew :desktop:run                              # abrir la app
+./gradlew :desktop:packageDistributionForCurrentOS  # instalador del sistema en el que estás
+```
+
+El instalador queda en `desktop/build/compose/binaries/main/`. Cada sistema genera solo el suyo (`.msi` en Windows, `.deb` en Linux, `.dmg` en macOS). Si falla al empaquetar con el JDK 25, indica un JDK 21 en la variable `PACKAGING_JAVA_HOME`, que es lo que hace GitHub Actions.
 
 ### Flujo de trabajo
 
@@ -415,7 +444,7 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-El workflow `.github/workflows/release.yml` compila el APK firmado y lo publica en Releases. Necesita estos secretos en **Settings > Secrets and variables > Actions**:
+El workflow `.github/workflows/release.yml` compila el APK firmado y los instaladores de escritorio (cada uno en una máquina de su sistema) y los publica juntos en Releases. También se puede lanzar a mano desde **Actions > Release > Run workflow** para probar los instaladores sin publicar nada: quedan como artefactos de la ejecución. Necesita estos secretos en **Settings > Secrets and variables > Actions**:
 
 | Secreto | Contenido |
 |---|---|
@@ -423,10 +452,12 @@ El workflow `.github/workflows/release.yml` compila el APK firmado y lo publica 
 | `SIGNING_STORE_PASSWORD` | Contraseña del almacén |
 | `SIGNING_KEY_ALIAS` | Alias de la clave |
 | `SIGNING_KEY_PASSWORD` | Contraseña de la clave |
+| `MUSICBRAINZ_CLIENT_ID` | Cliente de MusicBrainz (en local va en `local.properties`) |
+| `MUSICBRAINZ_CLIENT_SECRET` | Secreto de MusicBrainz (en local va en `local.properties`) |
 
 El número de versión se toma de la etiqueta y el `versionCode` del número de ejecución, así que cada release se instala encima de la anterior.
 
-> 🔒 Nunca subas el almacén de claves, sus contraseñas ni archivos de cookies. El `.gitignore` ya los excluye, pero revisa cada commit.
+> 🔒 Nunca subas el almacén de claves, sus contraseñas, `local.properties` ni archivos de cookies. El `.gitignore` ya los excluye, pero revisa cada commit.
 
 ---
 

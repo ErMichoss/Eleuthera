@@ -3,9 +3,13 @@ package com.tuapp.eleuthera.desktop
 import com.tuapp.eleuthera.data.db.AppDatabase
 import com.tuapp.eleuthera.data.db.buildAppDatabase
 import com.tuapp.eleuthera.data.download.DesktopDownloads
+import com.tuapp.eleuthera.data.importer.DesktopImports
+import com.tuapp.eleuthera.data.settings.DesktopCookieStore
+import com.tuapp.eleuthera.data.update.DesktopUpdateChecker
 import com.tuapp.eleuthera.data.library.DesktopLibrary
 import com.tuapp.eleuthera.data.playlist.DesktopPlaylistStore
 import com.tuapp.eleuthera.data.settings.DesktopLibrarySettings
+import com.tuapp.eleuthera.data.settings.DesktopProgressSkinStore
 import com.tuapp.eleuthera.data.settings.DownloadSettings
 import com.tuapp.eleuthera.data.settings.PlayerSettings
 import com.tuapp.eleuthera.data.settings.PreferenceStores
@@ -20,6 +24,7 @@ import com.tuapp.eleuthera.playback.DesktopPlayerController
 import com.tuapp.eleuthera.ui.playlists.PlaylistsController
 import com.tuapp.eleuthera.ui.search.SearchBackend
 import com.tuapp.eleuthera.ui.search.SearchController
+import com.tuapp.eleuthera.ui.settings.ProgressSkinController
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +47,8 @@ object AppGraph {
     val playerSettings by lazy { PlayerSettings(stores) }
     val librarySettings by lazy { DesktopLibrarySettings(stores) }
     val library by lazy { DesktopLibrary(librarySettings, database.folderTrackDao()) }
-    val ytDlp by lazy { DesktopYtDlp(downloadSettings) }
+    val cookies by lazy { DesktopCookieStore(DesktopPaths.dataDir) }
+    val ytDlp by lazy { DesktopYtDlp(downloadSettings, cookies) }
     val playlistStore by lazy {
         DesktopPlaylistStore(
             database.playlistDao(),
@@ -51,13 +57,20 @@ object AppGraph {
         )
     }
     val downloads by lazy { DesktopDownloads(ytDlp, database.downloadDao(), library, playlistStore) }
+    val imports by lazy { DesktopImports(ytDlp, downloads) }
+
+    /** Versión de la app (la pone Gradle al arrancar; "dev" si no se sabe). */
+    val appVersion: String = System.getProperty("eleuthera.version") ?: "dev"
+    val updates by lazy { DesktopUpdateChecker(stores, appVersion) }
 
     /** Modelos de las pantallas comunes (lo que en Android son ViewModels). */
-    val playerUi by lazy { DesktopPlayerUi(player) }
+    val skinStore by lazy { DesktopProgressSkinStore(File(DesktopPaths.dataDir, "progress_skins")) }
+    val playerUi by lazy { DesktopPlayerUi(player, skinStore.active) }
     val libraryModel by lazy { DesktopLibraryModel(library) }
     val playlists by lazy { PlaylistsController(uiScope, playlistStore) }
     val themeUi by lazy { DesktopThemeUi(themeRepository) }
     val downloadSettingsUi by lazy { DesktopDownloadSettingsUi(downloadSettings) }
+    val skins by lazy { ProgressSkinController(uiScope, skinStore) }
     val search by lazy {
         SearchController(
             uiScope,

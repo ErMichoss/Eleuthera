@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -40,7 +41,10 @@ import kotlinx.coroutines.withContext
 internal val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
 /** El reproductor visto desde MiniPlayer y NowPlayingScreen. */
-class DesktopPlayerUi(private val player: DesktopPlayerController) : PlayerUi {
+class DesktopPlayerUi(
+    private val player: DesktopPlayerController,
+    skins: Flow<LoadedSkin?>,
+) : PlayerUi {
 
     override val state: StateFlow<PlayerState> = player.state
 
@@ -51,8 +55,8 @@ class DesktopPlayerUi(private val player: DesktopPlayerController) : PlayerUi {
         }
     }.stateIn(uiScope, SharingStarted.WhileSubscribed(2_000), 0L)
 
-    /** Diseños de la barra de progreso: llegan con los ajustes (fase 6). */
-    override val progressSkin: StateFlow<LoadedSkin?> = MutableStateFlow(null)
+    /** Diseño de la barra de progreso elegido en Ajustes; null = la barra normal. */
+    override val progressSkin: StateFlow<LoadedSkin?> = skins.stateIn(uiScope, SharingStarted.Eagerly, null)
 
     /** Solo qué suena y si está en pausa: las listas no se recomponen por otros cambios. */
     val nowPlaying: StateFlow<NowPlaying> = player.state

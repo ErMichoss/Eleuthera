@@ -1,8 +1,5 @@
 package com.tuapp.eleuthera.ui.settings
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -26,7 +23,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +31,15 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import com.tuapp.eleuthera.platform.PlatformUri
+import com.tuapp.eleuthera.ui.platform.decodeImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,9 +48,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.tuapp.eleuthera.data.settings.LoadedSkin
 import com.tuapp.eleuthera.domain.model.ProgressSkin
 import com.tuapp.eleuthera.domain.model.SkinSlot
@@ -54,20 +55,31 @@ import com.tuapp.eleuthera.domain.model.TrackMode
 import com.tuapp.eleuthera.ui.player.SkinnedSeekBar
 import java.io.File
 
-/** Ajustes > Barra de progreso: elegir, crear y editar diseños. */
+/** Selector de imágenes de cada plataforma: llama a su argumento con la elegida (nada si se cancela). */
+typealias ImagePicker = (onPicked: (PlatformUri) -> Unit) -> Unit
+
+/**
+ * Ajustes > Barra de progreso: elegir, crear y editar diseños. Igual en Android y escritorio;
+ * [pickImage] abre el selector de imágenes de la plataforma.
+ */
 @Composable
-fun ProgressSkinPage(vm: ProgressSkinViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun ProgressSkinSettingsPage(
+    vm: ProgressSkinController,
+    pickImage: ImagePicker,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     SettingsPageScaffold("Barra de progreso", onBack, modifier) {
-        ProgressSkinSection(vm)
+        ProgressSkinSection(vm, pickImage)
     }
 }
 
 @Composable
-private fun ProgressSkinSection(vm: ProgressSkinViewModel) {
-    val skins by vm.skins.collectAsStateWithLifecycle()
-    val activeId by vm.activeId.collectAsStateWithLifecycle()
-    val loaded by vm.active.collectAsStateWithLifecycle()
-    val message by vm.message.collectAsStateWithLifecycle()
+private fun ProgressSkinSection(vm: ProgressSkinController, pickImage: ImagePicker) {
+    val skins by vm.skins.collectAsState()
+    val activeId by vm.activeId.collectAsState()
+    val loaded by vm.active.collectAsState()
+    val message by vm.message.collectAsState()
     val active = skins.firstOrNull { it.id == activeId }
 
     var creating by remember { mutableStateOf(false) }
@@ -82,23 +94,23 @@ private fun ProgressSkinSection(vm: ProgressSkinViewModel) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FilterChip(
+        OptionChip(
             selected = activeId == null,
             onClick = { vm.select(null) },
-            label = { Text("Por defecto") },
+            label = "Por defecto",
         )
         skins.forEach { skin ->
-            FilterChip(
+            OptionChip(
                 selected = skin.id == activeId,
                 onClick = { vm.select(skin.id) },
-                label = { Text(skin.name) },
+                label = skin.name,
             )
         }
-        FilterChip(
+        OptionChip(
             selected = false,
             onClick = { creating = true },
-            label = { Text("Nuevo") },
-            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+            label = "Nuevo",
+            leading = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
         )
     }
 
@@ -106,6 +118,7 @@ private fun ProgressSkinSection(vm: ProgressSkinViewModel) {
         SkinEditor(
             skin = active,
             vm = vm,
+            pickImage = pickImage,
             onRename = { renaming = true },
             onDelete = { deleting = true },
         )
@@ -168,7 +181,8 @@ private fun Preview(loaded: LoadedSkin?) {
 @Composable
 private fun SkinEditor(
     skin: ProgressSkin,
-    vm: ProgressSkinViewModel,
+    vm: ProgressSkinController,
+    pickImage: ImagePicker,
     onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -182,15 +196,15 @@ private fun SkinEditor(
         val slots = if (skin.mode == TrackMode.REVEAL) {
             listOf(SkinSlot.THUMB, SkinSlot.PLAYED)
         } else SkinSlot.entries
-        slots.forEach { slot -> SlotRow(skin, slot, vm) }
+        slots.forEach { slot -> SlotRow(skin, slot, vm, pickImage) }
 
         Text("Modo de las barras", style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TrackMode.entries.forEach { mode ->
-                FilterChip(
+                OptionChip(
                     selected = skin.mode == mode,
                     onClick = { vm.setMode(skin.id, mode) },
-                    label = { Text(mode.label) },
+                    label = mode.label,
                 )
             }
         }
@@ -209,11 +223,13 @@ private fun SkinEditor(
 }
 
 @Composable
-private fun SlotRow(skin: ProgressSkin, slot: SkinSlot, vm: ProgressSkinViewModel) {
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) vm.setImage(skin.id, slot, uri)
-    }
+private fun SlotRow(skin: ProgressSkin, slot: SkinSlot, vm: ProgressSkinController, pickImage: ImagePicker) {
     val path = skin.path(slot)
+    val image by produceState<ImageBitmap?>(null, path) {
+        value = path?.let {
+            withContext(Dispatchers.IO) { runCatching { decodeImage(java.io.File(it).readBytes()) }.getOrNull() }
+        }
+    }
     val label = if (slot == SkinSlot.PLAYED && skin.mode == TrackMode.REVEAL) "Barra completa" else slot.label
 
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -224,7 +240,7 @@ private fun SlotRow(skin: ProgressSkin, slot: SkinSlot, vm: ProgressSkinViewMode
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
-            if (path != null) AsyncImage(model = File(path), contentDescription = null)
+            image?.let { Image(it, contentDescription = null) }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
@@ -235,9 +251,7 @@ private fun SlotRow(skin: ProgressSkin, slot: SkinSlot, vm: ProgressSkinViewMode
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        TextButton(onClick = {
-            picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        }) { Text("Elegir") }
+        TextButton(onClick = { pickImage { vm.setImage(skin.id, slot, it) } }) { Text("Elegir") }
         if (path != null) TextButton(onClick = { vm.clearImage(skin.id, slot) }) { Text("Quitar") }
     }
 }

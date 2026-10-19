@@ -23,6 +23,18 @@ object FolderPicker {
         return File(dialog.directory, name)
     }
 
+    /** Un archivo con alguna de esas extensiones (cookies, listas para importar...). */
+    fun chooseFile(title: String, extensions: Set<String>): File? {
+        val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD).apply {
+            File(System.getProperty("user.home"), "Downloads").takeIf { it.isDirectory }?.let { directory = it.path }
+            file = extensions.joinToString(";") { "*.$it" }
+            setFilenameFilter { _, name -> name.substringAfterLast('.').lowercase() in extensions }
+        }
+        dialog.isVisible = true
+        val name = dialog.file ?: return null
+        return File(dialog.directory, name)
+    }
+
     fun choose(title: String = "Elige una carpeta con música"): File? {
         val start = File(System.getProperty("user.home"), "Music").takeIf { it.isDirectory }
         return if (DesktopPaths.isMac) {
