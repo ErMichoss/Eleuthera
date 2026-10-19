@@ -1,9 +1,5 @@
 package com.tuapp.eleuthera.ui.settings
 
-import android.content.Intent
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,7 +36,6 @@ import androidx.compose.material.icons.filled.LinearScale
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -51,6 +46,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import com.tuapp.eleuthera.ui.platform.PlatformBackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,15 +60,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuapp.eleuthera.domain.model.AppFont
 import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
-import com.tuapp.eleuthera.ui.login.CookieLoginActivity
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
 
@@ -114,8 +107,8 @@ private val backgroundSwatches = listOf(
 
 /** Ajustes > Apariencia: tema, colores, tipografía y formas. */
 @Composable
-fun AppearanceSettingsPage(vm: ThemeViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val config by vm.config.collectAsStateWithLifecycle()
+fun AppearanceSettingsPage(vm: ThemeUi, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val config by vm.config.collectAsState()
     var customColors by rememberSaveable { mutableStateOf(false) }
     var confirmReset by remember { mutableStateOf(false) }
 
@@ -125,7 +118,7 @@ fun AppearanceSettingsPage(vm: ThemeViewModel, onBack: () -> Unit, modifier: Mod
             presets.forEach { (name, preset) ->
                 val selected = config.primary == preset.primary &&
                         config.background == preset.background && config.accent == preset.accent
-                FilterChip(
+                OptionChip(
                     selected = selected,
                     // Un tema rápido cambia los colores; conserva fuente, bordes y estilo.
                     onClick = {
@@ -136,8 +129,8 @@ fun AppearanceSettingsPage(vm: ThemeViewModel, onBack: () -> Unit, modifier: Mod
                             )
                         }
                     },
-                    label = { Text(name) },
-                    leadingIcon = {
+                    label = name,
+                    leading = {
                         Box(
                             Modifier.size(14.dp).clip(CircleShape)
                                 .background(Color(preset.primary))
@@ -177,10 +170,10 @@ fun AppearanceSettingsPage(vm: ThemeViewModel, onBack: () -> Unit, modifier: Mod
         SectionTitle("Texto")
         ScrollRow {
             AppFont.entries.forEach { font ->
-                FilterChip(
+                OptionChip(
                     selected = config.font == font,
                     onClick = { vm.update { it.copy(font = font) } },
-                    label = { Text(font.label) },
+                    label = font.label,
                 )
             }
         }
@@ -204,10 +197,10 @@ fun AppearanceSettingsPage(vm: ThemeViewModel, onBack: () -> Unit, modifier: Mod
         )
         ScrollRow {
             ComponentStyle.entries.forEach { style ->
-                FilterChip(
+                OptionChip(
                     selected = config.style == style,
                     onClick = { vm.update { it.copy(style = style) } },
-                    label = { Text(style.label) },
+                    label = style.label,
                 )
             }
         }
@@ -232,7 +225,7 @@ fun AppearanceSettingsPage(vm: ThemeViewModel, onBack: () -> Unit, modifier: Mod
 }
 
 /** Nombre del tema rápido activo, o "Personalizado". */
-internal fun presetName(config: ThemeConfig): String =
+fun presetName(config: ThemeConfig): String =
     presets.firstOrNull { (_, p) ->
         p.primary == config.primary && p.background == config.background && p.accent == config.accent
     }?.first ?: "Personalizado"
@@ -325,15 +318,15 @@ private fun ColorRow(title: String, selected: Int, swatches: List<Int>, onPick: 
 /** Selector libre: tono, saturación y brillo, o código hexadecimal. */
 @Composable
 private fun ColorPickerDialog(initial: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
-    val start = remember { FloatArray(3).also { android.graphics.Color.colorToHSV(initial, it) } }
+    val start = remember { colorToHsv(initial) }
     var hue by remember { mutableFloatStateOf(start[0]) }
     var saturation by remember { mutableFloatStateOf(start[1]) }
     var brightness by remember { mutableFloatStateOf(start[2]) }
     var hex by remember { mutableStateOf("%06X".format(initial and 0xFFFFFF)) }
 
-    val argb = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, brightness))
+    val argb = hsvToColor(hue, saturation, brightness)
     fun syncHex() {
-        val c = android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, brightness))
+        val c = hsvToColor(hue, saturation, brightness)
         hex = "%06X".format(c and 0xFFFFFF)
     }
 
@@ -359,8 +352,7 @@ private fun ColorPickerDialog(initial: Int, onPick: (Int) -> Unit, onDismiss: ()
                     onValueChange = { input ->
                         hex = input.uppercase().filter { it in "0123456789ABCDEF" }.take(6)
                         if (hex.length == 6) {
-                            val hsv = FloatArray(3)
-                            android.graphics.Color.colorToHSV(0xFF000000.toInt() or hex.toInt(16), hsv)
+                            val hsv = colorToHsv(0xFF000000.toInt() or hex.toInt(16))
                             hue = hsv[0]; saturation = hsv[1]; brightness = hsv[2]
                         }
                     },

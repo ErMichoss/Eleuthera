@@ -1,9 +1,5 @@
 package com.tuapp.eleuthera.ui.settings
 
-import android.content.Intent
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,7 +36,6 @@ import androidx.compose.material.icons.filled.LinearScale
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -51,6 +46,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import com.tuapp.eleuthera.ui.platform.PlatformBackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,21 +60,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuapp.eleuthera.domain.model.AppFont
 import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
-import com.tuapp.eleuthera.ui.login.CookieLoginActivity
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
 
 /** Ajustes > Descargas. */
 @Composable
-fun DownloadSettingsPage(vm: DownloadSettingsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun DownloadSettingsPage(vm: DownloadSettingsUi, onBack: () -> Unit, modifier: Modifier = Modifier) {
     SettingsPageScaffold("Descargas", onBack, modifier) {
         SectionTitle("Formato de audio")
         DownloadSection(vm)
@@ -86,14 +79,14 @@ fun DownloadSettingsPage(vm: DownloadSettingsViewModel, onBack: () -> Unit, modi
 
 /** Formato en el que se guardan las descargas nuevas. */
 @Composable
-private fun DownloadSection(vm: DownloadSettingsViewModel) {
-    val format by vm.format.collectAsStateWithLifecycle()
+private fun DownloadSection(vm: DownloadSettingsUi) {
+    val format by vm.format.collectAsState()
     ScrollRow {
         AudioFormat.entries.forEach { option ->
-            FilterChip(
+            OptionChip(
                 selected = format == option,
                 onClick = { vm.setFormat(option) },
-                label = { Text(option.label) },
+                label = option.label,
             )
         }
     }

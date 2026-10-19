@@ -56,6 +56,8 @@ object AppGraph {
     val playerUi by lazy { DesktopPlayerUi(player) }
     val libraryModel by lazy { DesktopLibraryModel(library) }
     val playlists by lazy { PlaylistsController(uiScope, playlistStore) }
+    val themeUi by lazy { DesktopThemeUi(themeRepository) }
+    val downloadSettingsUi by lazy { DesktopDownloadSettingsUi(downloadSettings) }
     val search by lazy {
         SearchController(
             uiScope,

@@ -1,7 +1,6 @@
 package com.tuapp.eleuthera.desktop
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -23,16 +21,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tuapp.eleuthera.data.download.DesktopDownloads
-import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.DownloadStatus
 import com.tuapp.eleuthera.platform.Tools
-import kotlinx.coroutines.launch
 
 /**
  * Cola de descargas, a la derecha de Buscar. En Android su progreso va en las
@@ -54,7 +49,6 @@ fun DownloadQueuePanel(modifier: Modifier = Modifier) {
             if (active > 0) TextButton(onClick = downloads::cancelAll) { Text("Cancelar todo") }
             if (items.size > active) TextButton(onClick = downloads::clearFinished) { Text("Limpiar") }
         }
-        FormatChooser()
         if (items.isEmpty()) {
             Text(
                 "Lo que descargues aparecerá aquí y después en la biblioteca.",
@@ -64,27 +58,6 @@ fun DownloadQueuePanel(modifier: Modifier = Modifier) {
         }
         LazyColumn {
             items(items, key = { it.track.id }) { item -> DownloadRow(item, downloads) }
-        }
-    }
-}
-
-/** MP3 o M4A, el mismo ajuste que en Android. Se moverá a Ajustes. */
-@Composable
-private fun FormatChooser() {
-    val settings = AppGraph.downloadSettings
-    val format by settings.format.collectAsState(AudioFormat.MP3)
-    val scope = rememberCoroutineScope()
-    Row(
-        Modifier.padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        AudioFormat.entries.forEach { f ->
-            FilterChip(
-                selected = format == f,
-                onClick = { scope.launch { settings.setFormat(f) } },
-                label = { Text(f.label) },
-            )
         }
     }
 }

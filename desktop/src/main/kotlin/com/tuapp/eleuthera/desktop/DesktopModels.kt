@@ -2,7 +2,13 @@ package com.tuapp.eleuthera.desktop
 
 import com.tuapp.eleuthera.data.library.Covers
 import com.tuapp.eleuthera.data.library.DesktopLibrary
+import com.tuapp.eleuthera.data.settings.DownloadSettings
 import com.tuapp.eleuthera.data.settings.LoadedSkin
+import com.tuapp.eleuthera.data.settings.ThemeRepository
+import com.tuapp.eleuthera.domain.model.AudioFormat
+import com.tuapp.eleuthera.domain.model.ThemeConfig
+import com.tuapp.eleuthera.ui.settings.DownloadSettingsUi
+import com.tuapp.eleuthera.ui.settings.ThemeUi
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.platform.FileUri
 import com.tuapp.eleuthera.platform.PlatformUri
@@ -87,4 +93,24 @@ class DesktopLibraryModel(private val library: DesktopLibrary) {
 /** Carátulas en escritorio, para TrackArt (común): las saca Covers con ffmpeg. */
 val desktopArtLoader: suspend (PlatformUri) -> ImageBitmap? = { uri ->
     (uri as? FileUri)?.file?.let { Covers.load(it) }
+}
+
+/** Tema de la app para Ajustes > Apariencia (común). */
+class DesktopThemeUi(private val repo: ThemeRepository) : ThemeUi {
+    override val config: StateFlow<ThemeConfig> =
+        repo.config.stateIn(uiScope, SharingStarted.Eagerly, ThemeConfig())
+
+    override fun update(transform: (ThemeConfig) -> ThemeConfig) {
+        uiScope.launch { repo.save(transform(config.value)) }
+    }
+}
+
+/** Formato de descarga para Ajustes > Descargas (común). */
+class DesktopDownloadSettingsUi(private val settings: DownloadSettings) : DownloadSettingsUi {
+    override val format: StateFlow<AudioFormat> =
+        settings.format.stateIn(uiScope, SharingStarted.Eagerly, AudioFormat.MP3)
+
+    override fun setFormat(format: AudioFormat) {
+        uiScope.launch { settings.setFormat(format) }
+    }
 }

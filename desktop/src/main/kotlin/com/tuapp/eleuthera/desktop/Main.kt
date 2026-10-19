@@ -21,7 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -90,12 +90,12 @@ fun main() {
     }
 }
 
-/** Secciones de la barra lateral, como la barra inferior de Android. Ajustes llega en la 5c. */
+/** Secciones de la barra lateral, como la barra inferior de Android. */
 private enum class Section(val label: String, val icon: ImageVector) {
     SEARCH("Buscar", Icons.Default.Search),
     LIBRARY("Biblioteca", Icons.Default.LibraryMusic),
     PLAYLISTS("Playlists", Icons.AutoMirrored.Filled.PlaylistPlay),
-    FOLDERS("Carpetas", Icons.Default.Folder),
+    SETTINGS("Ajustes", Icons.Default.Settings),
 }
 
 /**
@@ -170,7 +170,7 @@ private fun App() {
                                         scope.launch { AppGraph.libraryModel.delete(track)?.let(toast) }
                                     },
                                     emptyHint = "Aún no hay música.\n" +
-                                            "Descarga algo en «Descargar» o añade una carpeta en «Carpetas».",
+                                            "Busca algo para descargar o añade una carpeta en Ajustes > Biblioteca.",
                                 )
                                 Section.PLAYLISTS -> PlaylistsContent(
                                     vm = AppGraph.playlists,
@@ -184,7 +184,7 @@ private fun App() {
                                     VerticalDivider()
                                     DownloadQueuePanel(Modifier.width(360.dp).fillMaxHeight())
                                 }
-                                Section.FOLDERS -> FoldersScreen(Modifier.fillMaxSize())
+                                Section.SETTINGS -> SettingsScreen(Modifier.fillMaxSize())
                             }
                         }
                         MiniPlayer(playerUi, onExpand = { showPlayer = true }, fullControls = true) {

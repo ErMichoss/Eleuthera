@@ -30,6 +30,8 @@ val appVersion = System.getenv("VERSION_NAME")?.removePrefix("v") ?: "1.0.0"
 compose.desktop {
     application {
         mainClass = "com.tuapp.eleuthera.desktop.MainKt"
+        // La app lee su versión de aquí (Ajustes > Acerca de).
+        jvmArgs += "-Deleuthera.version=$appVersion"
 
         nativeDistributions {
             // .msi en Windows, .deb en Linux y .dmg en macOS (cada uno se genera en su sistema).

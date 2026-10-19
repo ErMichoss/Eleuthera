@@ -1,9 +1,5 @@
 package com.tuapp.eleuthera.ui.settings
 
-import android.content.Intent
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,7 +46,15 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import com.tuapp.eleuthera.ui.platform.PlatformBackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,21 +67,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tuapp.eleuthera.domain.model.AppFont
 import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
-import com.tuapp.eleuthera.ui.login.CookieLoginActivity
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
 
 /** Cabecera con flecha atrás y contenido desplazable, común a todas las páginas de Ajustes. */
 @Composable
-internal fun SettingsPageScaffold(
+fun SettingsPageScaffold(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -85,7 +85,7 @@ internal fun SettingsPageScaffold(
     header: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    BackHandler(onBack = onBack)
+    PlatformBackHandler(onBack = onBack)
     Column(modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
@@ -106,7 +106,7 @@ internal fun SettingsPageScaffold(
 }
 
 @Composable
-internal fun SectionTitle(text: String) {
+fun SectionTitle(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.titleSmall,
@@ -116,7 +116,7 @@ internal fun SectionTitle(text: String) {
 }
 
 @Composable
-internal fun ScrollRow(content: @Composable () -> Unit) {
+fun ScrollRow(content: @Composable () -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -126,11 +126,49 @@ internal fun ScrollRow(content: @Composable () -> Unit) {
 
 /** Texto de ayuda pequeño bajo un ajuste. */
 @Composable
-internal fun SettingsHint(text: String) {
+fun SettingsHint(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 16.dp),
     )
+}
+/**
+ * Opción de una fila de ajustes (tema, fuente, estilo, formato...). Hace lo mismo que el
+ * FilterChip de Material, pero pinta él mismo el estado "ratón encima": el de Material
+ * dejaba en escritorio un rectángulo claro detrás del texto.
+ */
+@Composable
+fun OptionChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    label: String,
+    leading: (@Composable () -> Unit)? = null,
+) {
+    val colors = MaterialTheme.colorScheme
+    val shape = MaterialTheme.shapes.small
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val base = if (selected) colors.secondaryContainer else colors.surface
+    val container = if (hovered) lerp(base, colors.onSurface, 0.08f) else base
+    Row(
+        Modifier
+            .height(32.dp)
+            .clip(shape)
+            .background(container)
+            .then(if (selected) Modifier else Modifier.border(1.dp, colors.outline, shape))
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(interactionSource = interaction, indication = null, role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        leading?.invoke()
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
+        )
+    }
 }

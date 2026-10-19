@@ -14,12 +14,12 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class DownloadSettingsViewModel @Inject constructor(
     private val settings: DownloadSettings,
-) : ViewModel() {
+) : ViewModel(), DownloadSettingsUi {
 
-    val format: StateFlow<AudioFormat> =
+    override val format: StateFlow<AudioFormat> =
         settings.format.stateIn(viewModelScope, SharingStarted.Eagerly, AudioFormat.MP3)
 
-    fun setFormat(format: AudioFormat) {
+    override fun setFormat(format: AudioFormat) {
         viewModelScope.launch { settings.setFormat(format) }
     }
 }

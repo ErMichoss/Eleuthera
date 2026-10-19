@@ -74,7 +74,7 @@ fun AppTheme(config: ThemeConfig, content: @Composable () -> Unit) {
         tertiaryContainer = lerp(bg, accent, 0.30f), onTertiaryContainer = onBg,
         background = bg, onBackground = onBg,
         surface = bg, onSurface = onBg,
-        surfaceVariant = tone(0.12f), onSurfaceVariant = onBg.copy(alpha = 0.7f),
+        surfaceVariant = tone(0.12f), onSurfaceVariant = tone(0.70f),
         surfaceTint = primary,
         surfaceDim = bg, surfaceBright = tone(0.14f),
         surfaceContainerLowest = bg,
@@ -82,8 +82,10 @@ fun AppTheme(config: ThemeConfig, content: @Composable () -> Unit) {
         surfaceContainer = tone(0.07f),
         surfaceContainerHigh = tone(0.10f),
         surfaceContainerHighest = tone(0.13f),
-        outline = onBg.copy(alpha = 0.45f),
-        outlineVariant = onBg.copy(alpha = 0.18f),
+        // Opacos, no con transparencia: Material mezcla estos colores con los estados
+        // (ratón encima, pulsado...) y con transparencia el resultado se veía raro.
+        outline = tone(0.45f),
+        outlineVariant = tone(0.18f),
     )
 
     val family = when (config.font) {

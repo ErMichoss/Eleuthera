@@ -111,6 +111,17 @@ object Tools {
         }
     }
 
+    /**
+     * Primera línea de "[path] --version" (o "-version" para ffmpeg): "2026.10.10",
+     * "ffmpeg version 8.0 ..."... null si no se puede ejecutar.
+     */
+    suspend fun versionOf(path: String?, flag: String = "--version"): String? = withContext(Dispatchers.IO) {
+        path ?: return@withContext null
+        runCatching {
+            exec(listOf(path, flag), timeoutSeconds = 15).lines().firstOrNull { it.isNotBlank() }?.trim()
+        }.getOrNull()
+    }
+
     // ---- Instalación ----
 
     private fun installYtDlp() {
