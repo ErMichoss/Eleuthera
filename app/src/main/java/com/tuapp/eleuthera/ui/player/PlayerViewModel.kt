@@ -50,6 +50,8 @@ class PlayerViewModel @Inject constructor(
     fun addToQueue(track: Track) = player.addToQueue(track)
     fun playNextAll(tracks: List<Track>) = player.playNext(tracks)
     fun addAllToQueue(tracks: List<Track>) = player.addToQueue(tracks)
+    fun updateTrack(oldTrackId: Long, updatedTrack: Track) =
+        player.updateTrack(oldTrackId, updatedTrack)
 
     fun toggle() = player.toggle()
     fun next() = player.next()

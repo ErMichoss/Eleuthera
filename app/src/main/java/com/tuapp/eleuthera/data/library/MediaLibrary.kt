@@ -13,6 +13,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
+import com.tuapp.eleuthera.data.db.PlaylistDao
 import com.tuapp.eleuthera.domain.model.AudioFormat
 import com.tuapp.eleuthera.domain.model.Track
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -39,6 +41,7 @@ import kotlinx.coroutines.withContext
 class MediaLibrary @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val folderLibrary: FolderLibrary,
+    private val playlistDao: PlaylistDao,
 ) {
 
     private val collection: Uri =
@@ -77,6 +80,110 @@ class MediaLibrary @Inject constructor(
             file.parentFile?.deleteRecursively()
         }
         uri
+    }
+
+    /**
+     * Sustituye el original por un M4A en la misma ubicación y restaura audio/nombre/MIME si falla.
+     * En carpetas SAF el cambio de nombre puede devolver una URI nueva.
+     */
+    suspend fun replaceAudio(track: Track, replacement: File, backup: File, newName: String): Track =
+        withContext(Dispatchers.IO) {
+            val resolver = ctx.contentResolver
+            val oldName = displayName(track.uri)
+                ?: error("No se pudo determinar el nombre del archivo original.")
+            val oldMimeType = resolver.getType(track.uri)
+                ?: oldName.substringAfterLast('.', "").lowercase()
+                    .let { android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
+                ?: "audio/mpeg"
+            var targetUri = track.uri
+            var targetTrackId = track.id
+            var renamed = false
+            var contentWriteStarted = false
+            try {
+                if (FolderLibrary.isFolderTrack(track.id)) {
+                    if (newName != oldName) {
+                        targetUri = DocumentsContract.renameDocument(resolver, track.uri, newName)
+                            ?: error("No se pudo cambiar la extensión del archivo a .m4a.")
+                        renamed = true
+                    }
+                } else {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Audio.Media.DISPLAY_NAME, newName)
+                        put(MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
+                    }
+                    check(resolver.update(track.uri, values, null, null) > 0) {
+                        "No se pudo actualizar el nombre y el formato del archivo."
+                    }
+                    renamed = true
+                }
+
+                contentWriteStarted = true
+                resolver.openOutputStream(targetUri, "wt")?.use { output ->
+                    replacement.inputStream().use { input -> input.copyTo(output) }
+                } ?: error("El proveedor no permite modificar este archivo.")
+
+                if (FolderLibrary.isFolderTrack(track.id)) {
+                    val oldDocumentId = DocumentsContract.getDocumentId(track.uri)
+                    val newDocumentId = DocumentsContract.getDocumentId(targetUri)
+                    if (oldDocumentId != newDocumentId) {
+                        targetTrackId = FolderLibrary.idFor(newDocumentId)
+                        playlistDao.replaceTrackId(
+                            track.id,
+                            targetTrackId,
+                        )
+                    }
+                }
+            } catch (failure: Exception) {
+                var rollbackFailure: Exception? = null
+                if (contentWriteStarted) {
+                    try {
+                        resolver.openOutputStream(targetUri, "wt")?.use { output ->
+                            backup.inputStream().use { input -> input.copyTo(output) }
+                        } ?: error("No se pudo restaurar el audio original.")
+                    } catch (e: Exception) {
+                        rollbackFailure = e
+                    }
+                }
+                if (renamed) {
+                    try {
+                        if (FolderLibrary.isFolderTrack(track.id)) {
+                            DocumentsContract.renameDocument(resolver, targetUri, oldName)
+                                ?: error("No se pudo restaurar el nombre original.")
+                        } else {
+                            val values = ContentValues().apply {
+                                put(MediaStore.Audio.Media.DISPLAY_NAME, oldName)
+                                put(MediaStore.Audio.Media.MIME_TYPE, oldMimeType)
+                            }
+                            check(resolver.update(track.uri, values, null, null) > 0) {
+                                "No se pudo restaurar el nombre y el formato originales."
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (rollbackFailure == null) rollbackFailure = e else rollbackFailure.addSuppressed(e)
+                    }
+                }
+                if (rollbackFailure != null) {
+                    failure.addSuppressed(rollbackFailure)
+                    throw IllegalStateException(
+                        "Falló el recorte y no se pudo restaurar completamente el archivo original.",
+                        failure,
+                    )
+                }
+                throw failure
+            } finally {
+                if (FolderLibrary.isFolderTrack(track.id)) folderLibrary.refresh()
+            }
+
+            resolver.notifyChange(targetUri, null)
+            track.copy(id = targetTrackId, uri = targetUri)
+        }
+
+    /** Nombre físico del audio. */
+    suspend fun displayName(uri: Uri): String? = withContext(Dispatchers.IO) {
+        ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
     }
 
     /**

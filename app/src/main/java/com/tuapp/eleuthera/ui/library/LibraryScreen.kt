@@ -83,6 +83,7 @@ data class TrackActions(
     val onPlayNext: (Track) -> Unit = {},
     val onAddToQueue: (Track) -> Unit = {},
     val onAddToPlaylist: (Track) -> Unit = {},
+    val onTrim: (Track) -> Unit = {},
     /** Varias canciones (una playlist, un álbum...) justo después de la actual. */
     val onPlayNextAll: (List<Track>) -> Unit = {},
     /** Varias canciones al final de la cola del usuario. */
@@ -307,6 +308,10 @@ private fun TrackMenu(track: Track, actions: TrackActions, onDelete: (Track) -> 
             DropdownMenuItem(
                 text = { Text("Añadir a playlist") },
                 onClick = { open = false; actions.onAddToPlaylist(track) },
+            )
+            DropdownMenuItem(
+                text = { Text("Recortar contenido") },
+                onClick = { open = false; actions.onTrim(track) },
             )
             HorizontalDivider()
             DropdownMenuItem(

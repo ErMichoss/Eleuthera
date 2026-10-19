@@ -349,6 +349,20 @@ class PlayerController @Inject constructor(
         c.addMediaItems(pos, tracks.map { it.toMediaItem(userQueued = true) })
     }
 
+    /** Actualiza la URI y el formato de una canción recortada en el contexto y la cola actual. */
+    fun updateTrack(oldTrackId: Long, updatedTrack: Track) {
+        context = context.map { if (it.id == oldTrackId) updatedTrack else it }
+        val c = controller ?: return
+        val currentIndex = c.currentMediaItemIndex
+        for (index in 0 until c.mediaItemCount) {
+            val item = c.getMediaItemAt(index)
+            if (item.mediaId == oldTrackId.toString()) {
+                c.replaceMediaItem(index, updatedTrack.toMediaItem(item.isUserQueued))
+                if (index == currentIndex) c.seekToDefaultPosition(index)
+            }
+        }
+    }
+
     /** Mueve una canción pendiente; [from] y [to] son posiciones reales del reproductor. */
     fun move(from: Int, to: Int) {
         val c = controller ?: return

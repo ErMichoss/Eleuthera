@@ -46,8 +46,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tuapp.eleuthera.ui.library.LibraryScreen
+import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.common.LocalNowPlaying
 import com.tuapp.eleuthera.ui.library.TrackActions
+import com.tuapp.eleuthera.ui.player.TrimEditorScreen
 import com.tuapp.eleuthera.ui.player.MiniPlayer
 import com.tuapp.eleuthera.ui.player.NowPlayingScreen
 import com.tuapp.eleuthera.ui.player.PlayerViewModel
@@ -135,6 +137,8 @@ private fun AppRoot(
 ) {
     var section by rememberSaveable { mutableStateOf(Section.SEARCH) }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
+    var trackToTrim by remember { mutableStateOf<Track?>(null) }
+    var resumeAfterTrim by remember { mutableStateOf(false) }
     // Canción o lista para la que se está eligiendo playlist (null = diálogo cerrado).
     var playlistTarget by remember { mutableStateOf<PlaylistTarget?>(null) }
     LaunchedEffect(openPlayerRequest) {
@@ -150,6 +154,11 @@ private fun AppRoot(
             onPlayNext = playerVm::playNext,
             onAddToQueue = playerVm::addToQueue,
             onAddToPlaylist = { playlistTarget = PlaylistTarget(it) },
+            onTrim = { track ->
+                resumeAfterTrim = playerVm.state.value.isPlaying
+                if (resumeAfterTrim) playerVm.toggle()
+                trackToTrim = track
+            },
             onPlayNextAll = playerVm::playNextAll,
             onAddAllToQueue = playerVm::addAllToQueue,
             onAddAllToPlaylist = { label, tracks -> playlistTarget = PlaylistTarget(label, tracks) },
@@ -211,6 +220,19 @@ private fun AppRoot(
 
             playlistTarget?.let { target ->
                 AddToPlaylistDialog(target, playlistsVm, onDismiss = { playlistTarget = null })
+            }
+
+            trackToTrim?.let { track ->
+                TrimEditorScreen(
+                    track = track,
+                    onClose = { updatedTrack ->
+                        if (updatedTrack != null) playerVm.updateTrack(track.id, updatedTrack)
+                        trackToTrim = null
+                        if (resumeAfterTrim) playerVm.toggle()
+                        resumeAfterTrim = false
+                    },
+                    modifier = Modifier.safeDrawingPadding(),
+                )
             }
 
             // Reproductor a pantalla completa, por encima de todo.

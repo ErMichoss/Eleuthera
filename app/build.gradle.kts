@@ -87,8 +87,10 @@ android {
 dependencies {
     // Motor de descarga
     val ytdl = "0.18.1"
+    // 0.18.1 empaqueta librubberband.so sin libgcc_shared.so en Android.
+    val ffmpeg = "0.17.4"
     implementation("io.github.junkfood02.youtubedl-android:library:$ytdl")
-    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$ytdl")
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$ffmpeg")
 
     // Compose
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))

@@ -480,6 +480,10 @@ private fun PlaylistTrackMenu(track: Track, actions: TrackActions, onRemove: () 
                 text = { Text("Añadir a otra playlist") },
                 onClick = { open = false; actions.onAddToPlaylist(track) },
             )
+            DropdownMenuItem(
+                text = { Text("Recortar contenido") },
+                onClick = { open = false; actions.onTrim(track) },
+            )
             HorizontalDivider()
             DropdownMenuItem(
                 text = { Text("Quitar de esta playlist") },
