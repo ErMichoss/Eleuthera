@@ -7,7 +7,9 @@ import com.tuapp.eleuthera.data.db.DownloadDao
 import com.tuapp.eleuthera.data.db.FolderTrackDao
 import com.tuapp.eleuthera.data.db.PlaylistDao
 import com.tuapp.eleuthera.data.db.buildAppDatabase
+import com.tuapp.eleuthera.data.lrclib.LrclibService
 import com.tuapp.eleuthera.data.settings.PreferenceStores
+import java.io.File
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,6 +34,11 @@ object AppModule {
     @Singleton
     fun providePreferenceStores(@ApplicationContext ctx: Context): PreferenceStores =
         PreferenceStores(ctx.filesDir)
+
+    @Provides
+    @Singleton
+    fun provideLrclibService(@ApplicationContext ctx: Context): LrclibService =
+        LrclibService(File(ctx.filesDir, "lrclib/lyrics-cache.json"))
 
     @Provides
     fun providePlaylistDao(db: AppDatabase): PlaylistDao = db.playlistDao()

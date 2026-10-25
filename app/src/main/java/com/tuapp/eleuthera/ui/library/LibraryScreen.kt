@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +65,7 @@ fun LibraryScreen(
     }
 
     val scope = rememberCoroutineScope()
+    val folderLyricsProgress by vm.folderLyricsProgress.collectAsState()
     var awaitingConfirm by remember { mutableStateOf<Track?>(null) }
     val confirmLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -81,6 +83,8 @@ fun LibraryScreen(
         controller = vm.controller,
         actions = actions,
         modifier = modifier,
+        onSearchFolderLyrics = vm::toggleFolderLyrics,
+        folderLyricsProgress = folderLyricsProgress,
         onConfirmDelete = { track ->
             scope.launch {
                 val sender = vm.delete(track)

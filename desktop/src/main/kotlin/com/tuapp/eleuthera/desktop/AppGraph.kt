@@ -9,6 +9,7 @@ import com.tuapp.eleuthera.data.importer.DesktopImports
 import com.tuapp.eleuthera.data.settings.DesktopCookieStore
 import com.tuapp.eleuthera.data.update.DesktopUpdateChecker
 import com.tuapp.eleuthera.data.library.DesktopLibrary
+import com.tuapp.eleuthera.data.lrclib.LrclibService
 import com.tuapp.eleuthera.data.playlist.DesktopPlaylistStore
 import com.tuapp.eleuthera.data.settings.DesktopLibrarySettings
 import com.tuapp.eleuthera.data.settings.DesktopProgressSkinStore
@@ -51,6 +52,9 @@ object AppGraph {
     val library by lazy { DesktopLibrary(librarySettings, database.folderTrackDao()) }
     val cookies by lazy { DesktopCookieStore(DesktopPaths.dataDir) }
     val ytDlp by lazy { DesktopYtDlp(downloadSettings, cookies) }
+    val lrclib by lazy {
+        LrclibService(File(DesktopPaths.dataDir, "lrclib/lyrics-cache.json"), appVersion)
+    }
     val playlistStore by lazy {
         DesktopPlaylistStore(
             database.playlistDao(),

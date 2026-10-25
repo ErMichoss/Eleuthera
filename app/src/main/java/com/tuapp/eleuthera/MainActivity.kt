@@ -185,6 +185,7 @@ private fun AppRoot(
     // Qué canción suena: lo leen las listas para resaltarla.
     val nowPlaying by playerVm.nowPlaying.collectAsStateWithLifecycle()
     val lyrics by playerVm.lyrics.collectAsStateWithLifecycle()
+    val currentMediaUri by playerVm.currentMediaUri.collectAsStateWithLifecycle()
 
     // Las pantallas comunes (:shared) piden a la plataforma los avisos y las carátulas.
     val context = LocalContext.current
@@ -271,9 +272,16 @@ private fun AppRoot(
                     vm = playerVm,
                     onClose = { showPlayer = false },
                     modifier = Modifier.safeDrawingPadding(),
-                    extraContent = {
+                    extraContent = { positionMs ->
                         if (nowPlaying.mediaId != null) {
-                            LyricsCard(lyrics.text, lyrics.loading, lyrics.error)
+                            LyricsCard(
+                                text = lyrics.text.takeIf { lyrics.mediaUri == currentMediaUri },
+                                loading = lyrics.loading || lyrics.mediaUri != currentMediaUri,
+                                error = lyrics.error.takeIf { lyrics.mediaUri == currentMediaUri },
+                                positionMs = positionMs,
+                                subtitleMessage = lyrics.subtitleMessage
+                                    .takeIf { lyrics.mediaUri == currentMediaUri },
+                            )
                         }
                     },
                 )

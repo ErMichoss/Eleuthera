@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -75,7 +76,7 @@ fun NowPlayingScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     extraControls: @Composable () -> Unit = {},
-    extraContent: @Composable () -> Unit = {},
+    extraContent: @Composable (Long) -> Unit = {},
 ) {
     val state by vm.state.collectAsState()
     val position by vm.positionMs.collectAsState()
@@ -127,7 +128,7 @@ fun NowPlayingScreen(
 
             val skin by vm.progressSkin.collectAsState()
             SeekBar(position, state.durationMs, skin, state.isPlaying, vm::seekTo)
-            extraContent()
+            extraContent(position)
             Controls(state, vm)
             extraControls()
             Spacer(Modifier.height(16.dp))
@@ -136,31 +137,138 @@ fun NowPlayingScreen(
 }
 
 @Composable
-fun LyricsCard(text: String?, loading: Boolean, error: String?) {
+fun LyricsCard(
+    text: String?,
+    loading: Boolean,
+    error: String?,
+    positionMs: Long,
+    subtitleMessage: String? = null,
+) {
+    var expanded by rememberSaveable(text) { mutableStateOf(false) }
+    val message = when {
+        loading -> "Buscando letras…"
+        error != null -> "No se pudieron leer las letras: $error"
+        text.isNullOrBlank() -> "No se encontraron letras incrustadas ni en LRCLIB para esta canción."
+        else -> null
+    }
+    val lines = remember(text) { text?.let(::parseLyricsLines).orEmpty() }
+    val activeIndex = lines.indexOfLast { it.startMs != null && it.startMs <= positionMs }
+    val visibleLines = if (expanded || lines.size <= LYRICS_PREVIEW_LINES) {
+        lines.indices.toList()
+    } else {
+        val first = (activeIndex - 1).coerceAtLeast(0)
+            .coerceAtMost(lines.size - LYRICS_PREVIEW_LINES)
+        (first until first + LYRICS_PREVIEW_LINES).toList()
+    }
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 88.dp, max = 240.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp)
+            .heightIn(min = 88.dp, max = 240.dp)
+            .clickable(enabled = !text.isNullOrBlank()) { expanded = !expanded },
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
     ) {
         Column(
-            Modifier.padding(16.dp).verticalScroll(rememberScrollState()),
+            Modifier.padding(16.dp).then(
+                if (expanded) Modifier.verticalScroll(rememberScrollState()) else Modifier,
+            ),
         ) {
-            Text("Letra", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
             Text(
-                when {
-                    loading -> "Leyendo letras incrustadas…"
-                    error != null -> "No se pudieron leer las letras: $error"
-                    text.isNullOrBlank() ->
-                        "No hay letras incrustadas compatibles disponibles para esta canción."
-                    else -> text
-                },
-                style = MaterialTheme.typography.bodyLarge,
+                if (expanded) "Letra completa" else "Letra · toca para ampliar",
+                style = MaterialTheme.typography.titleMedium,
             )
+            Spacer(Modifier.height(8.dp))
+            if (message != null) {
+                Text(message, style = MaterialTheme.typography.bodyLarge)
+            } else {
+                visibleLines.forEach { index ->
+                    Text(
+                        text = lines[index].text,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = if (index == activeIndex && lines[index].startMs != null) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        },
+                        fontWeight = if (index == activeIndex && lines[index].startMs != null) {
+                            FontWeight.Bold
+                        } else {
+                            FontWeight.Normal
+                        },
+                        maxLines = if (expanded) Int.MAX_VALUE else 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            subtitleMessage?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
+
+private data class LyricsLine(val startMs: Long?, val text: String)
+
+private fun parseLyricsLines(text: String): List<LyricsLine> {
+    val lrcLines = text.lineSequence().flatMap { line ->
+        val timestamps = LRC_TIMESTAMP.findAll(line).toList()
+        val lyric = LRC_TIMESTAMP.replace(line, "").trim()
+        if (lyric.isBlank() || LRC_METADATA.matches(lyric)) {
+            emptySequence()
+        } else {
+            timestamps.asSequence().mapNotNull { match ->
+                val minutes = match.groupValues[1].toLongOrNull() ?: return@mapNotNull null
+                val seconds = match.groupValues[2].toLongOrNull() ?: return@mapNotNull null
+                val fraction = match.groupValues[3].padEnd(3, '0').take(3).toLongOrNull() ?: 0
+                LyricsLine((minutes * 60 + seconds) * 1_000 + fraction, lyric)
+            }
+        }
+    }.toList()
+    if (lrcLines.isNotEmpty()) {
+        return lrcLines.sortedBy { it.startMs }
+            .groupBy { it.startMs }
+            .map { (startMs, sameTimeLines) ->
+                LyricsLine(startMs, sameTimeLines.map { it.text }.distinct().joinToString("\n"))
+            }
+    }
+
+    val srtLines = text.split(Regex("""\r?\n\s*\r?\n""")).flatMap { block ->
+        val blockLines = block.lines()
+        val timestampIndex = blockLines.indexOfFirst { SRT_TIMESTAMP.matches(it.trim()) }
+        if (timestampIndex == -1) emptyList() else {
+            val match = SRT_TIMESTAMP.matchEntire(blockLines[timestampIndex].trim())!!
+            val startMs = parseSrtTimestamp(match.groupValues[1])
+            blockLines.drop(timestampIndex + 1)
+                .filter(String::isNotBlank)
+                .map { LyricsLine(startMs, it.trim()) }
+        }
+    }
+    if (srtLines.isNotEmpty()) return srtLines
+
+    return text.lineSequence()
+        .map(String::trim)
+        .filter(String::isNotBlank)
+        .map { LyricsLine(null, it) }
+        .toList()
+}
+
+private fun parseSrtTimestamp(value: String): Long? {
+    val match = SRT_TIME.matchEntire(value) ?: return null
+    val hours = match.groupValues[1].toLongOrNull() ?: return null
+    val minutes = match.groupValues[2].toLongOrNull() ?: return null
+    val seconds = match.groupValues[3].toLongOrNull() ?: return null
+    val millis = match.groupValues[4].toLongOrNull() ?: return null
+    return ((hours * 60 + minutes) * 60 + seconds) * 1_000 + millis
+}
+
+private const val LYRICS_PREVIEW_LINES = 4
+private val LRC_TIMESTAMP = Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?]""")
+private val LRC_METADATA = Regex("""\[(?:ar|al|ti|by|re|ve|length|offset|kana|la):.*]""", RegexOption.IGNORE_CASE)
+private val SRT_TIMESTAMP = Regex("""(\d{2}:\d{2}:\d{2}[,.]\d{3})\s+-->\s+(\d{2}:\d{2}:\d{2}[,.]\d{3})""")
+private val SRT_TIME = Regex("""(\d{2}):(\d{2}):(\d{2})[,.](\d{3})""")
 
 @Composable
 private fun SeekBar(
