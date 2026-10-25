@@ -3,8 +3,8 @@
 // Kotlin 2.2.21 es la primera rama que funciona con Java 25. Las versiones de KSP, Hilt y
 // Compose Multiplatform van ligadas a la de Kotlin: si se sube una, revisar las demás.
 plugins {
-    id("com.android.application") version "8.7.3" apply false
-    id("com.android.library") version "8.7.3" apply false
+    id("com.android.application") version "8.13.2" apply false
+    id("com.android.library") version "8.13.2" apply false
     id("org.jetbrains.kotlin.android") version "2.2.21" apply false
     id("org.jetbrains.kotlin.multiplatform") version "2.2.21" apply false
     id("org.jetbrains.kotlin.jvm") version "2.2.21" apply false
