@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import com.yausername.ffmpeg.FFmpeg
+import com.tuapp.eleuthera.data.metadata.MetaDataManager
+import com.tuapp.eleuthera.data.metadata.TrackMetadata
 import com.tuapp.eleuthera.domain.model.Track
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -17,8 +19,9 @@ import kotlinx.coroutines.withContext
 
 @Singleton
 class AudioTrimmer @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val library: MediaLibrary,
+    private val metadataManager: MetaDataManager,
 ) {
     suspend fun durationMs(uri: Uri): Long = withContext(Dispatchers.IO) {
         val retriever = MediaMetadataRetriever()
@@ -63,6 +66,11 @@ class AudioTrimmer @Inject constructor(
 
                 val originalName = library.displayName(track.uri)
                     ?: error("No se pudo determinar el nombre del archivo original.")
+                val metadata = metadataManager.getTrackMetadata(track)
+                val artworkFile = metadata.coverArtwork?.takeIf { it.isNotEmpty() }?.let { artwork ->
+                    File(directory, if (artwork.isPng()) "cover.png" else "cover.jpg")
+                        .apply { writeBytes(artwork) }
+                }
                 val output = File(directory, "trimmed.m4a")
                 FFmpeg.getInstance().init(context)
                 val ffmpeg = File(context.applicationInfo.nativeLibraryDir, "libffmpeg.so")
@@ -76,25 +84,39 @@ class AudioTrimmer @Inject constructor(
                 runInterruptible(Dispatchers.IO) {
                     val command = buildList {
                         addAll(listOf(ffmpeg.absolutePath, "-hide_banner", "-loglevel", "error", "-y"))
+                        addAll(listOf("-i", input.absolutePath))
+                        artworkFile?.let { addAll(listOf("-i", it.absolutePath)) }
                         if (removeSelectedSegment) {
-                            addAll(listOf("-i", input.absolutePath))
-                            addAll(
-                                removalFilter(startMs, endMs, durationMs)
-                            )
+                            addAll(removalFilter(startMs, endMs, durationMs))
                         } else {
                             val seconds = (endMs - startMs) / 1000.0
                             addAll(
                                 listOf(
                                     "-ss", String.format(Locale.US, "%.3f", startMs / 1000.0),
-                                    "-i", input.absolutePath,
                                     "-t", String.format(Locale.US, "%.3f", seconds),
                                     "-map", "0:a:0",
                                 )
                             )
                         }
+                        if (artworkFile != null) {
+                            addAll(
+                                listOf(
+                                    "-map", "1:v:0",
+                                    "-c:v:0", "mjpeg",
+                                    "-disposition:v:0", "attached_pic",
+                                    "-metadata:s:v:0", "title=Album cover",
+                                    "-metadata:s:v:0", "comment=Cover (front)",
+                                )
+                            )
+                        } else {
+                            add("-vn")
+                        }
                         addAll(
                             listOf(
-                                "-map_metadata", "0", "-vn",
+                                "-map_metadata", "0",
+                                "-metadata", "title=${metadata.title}",
+                                "-metadata", "artist=${metadata.artist}",
+                                "-metadata", "album=${metadata.album}",
                                 "-f", "ipod", "-c:a", "aac",
                                 "-b:a", "192k",
                             )
@@ -132,6 +154,7 @@ class AudioTrimmer @Inject constructor(
                 check(kotlin.math.abs(actualOutputDurationMs - updatedDurationMs) <= 1_500) {
                     "El audio generado no coincide con la operación seleccionada; el original se ha conservado."
                 }
+                verifyMetadata(output, metadata)
                 library.replaceAudio(track, output, input, outputName)
                     .copy(durationMs = updatedDurationMs)
             } finally {
@@ -147,6 +170,33 @@ class AudioTrimmer @Inject constructor(
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull()?.coerceAtLeast(0)
                 ?: error("No se pudo validar la duración del audio generado.")
+        } finally {
+            retriever.release()
+        }
+    }
+
+    /** No sustituye el original si el contenedor generado perdió las etiquetas o la portada. */
+    private fun verifyMetadata(file: File, expected: TrackMetadata) {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            val checks = listOf(
+                MediaMetadataRetriever.METADATA_KEY_TITLE to expected.title,
+                MediaMetadataRetriever.METADATA_KEY_ARTIST to expected.artist,
+                MediaMetadataRetriever.METADATA_KEY_ALBUM to expected.album,
+            )
+            checks.forEach { (key, value) ->
+                if (value.isNotBlank()) {
+                    check(retriever.extractMetadata(key)?.trim() == value.trim()) {
+                        "El audio generado no conservó todos los metadatos; el original se ha conservado."
+                    }
+                }
+            }
+            if (expected.coverArtwork?.isNotEmpty() == true) {
+                check(retriever.embeddedPicture?.isNotEmpty() == true) {
+                    "El audio generado perdió la portada; el original se ha conservado."
+                }
+            }
         } finally {
             retriever.release()
         }
@@ -168,5 +218,14 @@ class AudioTrimmer @Inject constructor(
             }
         }
         return listOf("-filter_complex", filter, "-map", "[outa]")
+    }
+
+    private fun ByteArray.isPng(): Boolean =
+        size >= PNG_SIGNATURE.size && PNG_SIGNATURE.indices.all { this[it] == PNG_SIGNATURE[it] }
+
+    private companion object {
+        val PNG_SIGNATURE = byteArrayOf(
+            0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+        )
     }
 }

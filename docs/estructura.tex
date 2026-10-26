@@ -771,6 +771,8 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
   \ruta{data/library/MediaLibrary.kt} & Biblioteca: \cod{Music/Eleuthera} vía MediaStore (con
     etiquetas ID3) + carpetas extra; publicar y borrar archivos (con confirmación del sistema
     si Android la pide). \\
+  \ruta{data/library/AudioTrimmer.kt} & Genera el M4A/AAC con FFmpeg, conserva y verifica
+    metadatos y portada, valida la duración y delega en \cod{MediaLibrary} el reemplazo del original. \\
   \ruta{data/library/FolderLibrary.kt} & Carpetas añadidas en Ajustes, recorridas con el
     permiso del selector (SAF), sin MediaStore. Lista barata + etiquetas en segundo plano
     guardadas en \cod{folder\_tracks}. \\
@@ -784,7 +786,8 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
   \ruta{data/update/UpdateChecker.kt} & Última release de GitHub (API pública, cada 12\,h como
     mucho; versiones omitidas). \\
   \ruta{data/metadata/MetaDataManager.kt} & Metadatos de una canción (álbum, portada…) y
-    detección de canciones sin carátula o sin datos. \emph{En desarrollo: aún no lo usa nadie.} \\
+    detección de canciones sin carátula o sin datos. También aporta la portada incrustada o
+    de MediaStore al proceso de recorte. \\
 \end{archivos}
 
 \section{Reproducción}
@@ -809,6 +812,12 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
     y los lotes de biblioteca. \cod{LyricsRepository} separa el flujo del cliente REST
     \cod{LrclibService}; \cod{AndroidLyricsStorage} implementa lectura incrustada/local y
     guardado SAF/MediaStore. \\
+  \ruta{ui/player/TrimEditorScreen.kt}, \ruta{TrimEditorContent.kt} &
+    \cod{TrimEditorScreen} conecta el ViewModel y la previsualización Android;
+    \cod{TrimEditorContent} presenta el estado y emite acciones mediante callbacks. \\
+  \ruta{ui/player/TrimEditorViewModel.kt}, \ruta{TrimEditorController.kt} &
+    El ViewModel expone el estado observable y gestiona el ciclo de vida; el controller aplica
+    las reglas de selección y coordina \cod{AudioTrimmer}. \\
   \ruta{ui/playlists/*} & \cod{PlaylistsScreen} (selector de fotos del sistema),
     \cod{PlaylistsViewModel} y \cod{QuickPlaylist.kt} (botón flotante arrastrable con todas
     las playlists). \\
