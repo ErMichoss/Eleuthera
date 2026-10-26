@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.ui.lyrics.LyricsViewModel
 import kotlinx.coroutines.launch
 
 private val audioPermission =
@@ -46,6 +47,7 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
     actions: TrackActions = TrackActions(),
     vm: LibraryViewModel = hiltViewModel(),
+    lyricsVm: LyricsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     var granted by remember {
@@ -65,7 +67,7 @@ fun LibraryScreen(
     }
 
     val scope = rememberCoroutineScope()
-    val folderLyricsProgress by vm.folderLyricsProgress.collectAsState()
+    val folderLyricsProgress by lyricsVm.batchProgress.collectAsState()
     var awaitingConfirm by remember { mutableStateOf<Track?>(null) }
     val confirmLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -83,7 +85,7 @@ fun LibraryScreen(
         controller = vm.controller,
         actions = actions,
         modifier = modifier,
-        onSearchFolderLyrics = vm::toggleFolderLyrics,
+        onSearchFolderLyrics = lyricsVm::toggleFolderSearch,
         folderLyricsProgress = folderLyricsProgress,
         onConfirmDelete = { track ->
             scope.launch {

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.ui.lyrics.LyricsBatchProgress
 import com.tuapp.eleuthera.ui.common.QueueMenuButton
 import com.tuapp.eleuthera.ui.common.SelectionBar
 import com.tuapp.eleuthera.ui.common.TrackRowArt
@@ -69,7 +70,7 @@ fun LibraryContent(
     actions: TrackActions,
     onConfirmDelete: (Track) -> Unit,
     onSearchFolderLyrics: ((LibraryGroup) -> Unit)? = null,
-    folderLyricsProgress: Map<String, FolderLyricsProgress> = emptyMap(),
+    folderLyricsProgress: Map<String, LyricsBatchProgress> = emptyMap(),
     modifier: Modifier = Modifier,
     emptyHint: String = "Aún no hay música.\nDescarga algo desde Buscar.",
 ) {
@@ -78,7 +79,7 @@ fun LibraryContent(
     PlatformBackHandler(enabled = open != null) { controller.closeGroup() }
 
     var toDelete by remember { mutableStateOf<Track?>(null) }
-    var folderResult by remember { mutableStateOf<Pair<String, FolderLyricsProgress>?>(null) }
+    var folderResult by remember { mutableStateOf<Pair<String, LyricsBatchProgress>?>(null) }
     val onDelete: (Track) -> Unit = { toDelete = it }
 
     // ---- Selección múltiple ----

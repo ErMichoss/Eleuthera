@@ -298,6 +298,8 @@ shared/
     │       ├── data/
     │       │   ├── db/              AppDatabase (Room v4), entidades y DAOs
     │       │   ├── importer/        ImportFileParser (CSV/TXT), TrackMatcher
+    │       │   ├── lrclib/          LyricsRepository, cliente REST LrclibService y modelos
+    │       │   ├── metadata/        Coincidencia exacta de letras
     │       │   ├── musicbrainz/     MusicBrainzModel, MusicBrainzService
     │       │   ├── playlist/        PlaylistStore (base común)
     │       │   ├── settings/        PreferenceStores, Theme/Download/PlayerSettings,
@@ -308,6 +310,7 @@ shared/
     │       └── ui/
     │           ├── common/          NowPlaying, TrackArt, Selection, QueueMenu
     │           ├── library/         LibraryController, LibraryContent, TrackActions
+    │           ├── lyrics/          LyricsController, flujo local→LRCLIB y lotes
     │           ├── musicbrainz/     MusicBrainzController, MusicBrainzContent
     │           ├── platform/        PlatformUi (expect + CompositionLocals)
     │           ├── player/          PlayerUi, MiniPlayer, NowPlayingScreen, SkinnedProgress
@@ -540,6 +543,7 @@ escritorio.
 \cod{PlaylistsController} & \cod{PlaylistsViewModel} (PlaylistRepository) & \cod{AppGraph.playlists} (DesktopPlaylistStore) \\
 \cod{ProgressSkinController} & \cod{ProgressSkinViewModel} (ProgressSkinRepository) & \cod{AppGraph.skins} (DesktopProgressSkinStore) \\
 \cod{MusicBrainzController} & \cod{MusicBrainzViewModel} (+ OAuth) & \cod{AppGraph.musicBrainz} \\
+\cod{LyricsController} + \cod{LyricsRepository} + \cod{LyricsStorage} & \cod{LyricsViewModel} + \cod{AndroidLyricsStorage} & Sin flujo LRCLIB en escritorio \\
 interfaz \cod{PlayerUi} & \cod{PlayerViewModel} & \cod{DesktopPlayerUi} \\
 interfaz \cod{ThemeUi} & \cod{ThemeViewModel} & \cod{DesktopThemeUi} \\
 interfaz \cod{DownloadSettingsUi} & \cod{DownloadSettingsViewModel} & \cod{DesktopDownloadSettingsUi} \\
@@ -800,6 +804,11 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
     \cod{SearchViewModel}. \\
   \ruta{ui/library/*} & \cod{LibraryScreen} (permiso de lectura y confirmación de borrado
     alrededor de \cod{LibraryContent}) y \cod{LibraryViewModel}. \\
+  \ruta{ui/lyrics/*} & \cod{LyricsScreen} y \cod{LyricsViewModel} envuelven el contenido común
+    y el flujo compartido \cod{LyricsController}; el mismo ViewModel gestiona la pista activa
+    y los lotes de biblioteca. \cod{LyricsRepository} separa el flujo del cliente REST
+    \cod{LrclibService}; \cod{AndroidLyricsStorage} implementa lectura incrustada/local y
+    guardado SAF/MediaStore. \\
   \ruta{ui/playlists/*} & \cod{PlaylistsScreen} (selector de fotos del sistema),
     \cod{PlaylistsViewModel} y \cod{QuickPlaylist.kt} (botón flotante arrastrable con todas
     las playlists). \\

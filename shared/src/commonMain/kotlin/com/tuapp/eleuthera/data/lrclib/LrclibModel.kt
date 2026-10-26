@@ -18,3 +18,12 @@ data class LrclibLyrics(
     @SerialName("hasPlainLyrics") val hasPlainLyrics: Boolean? = null,
     @SerialName("hasWordSync") val hasWordSync: Boolean? = null,
 )
+
+interface LyricsSearchService {
+    suspend fun searchLyricsByMetadata(
+        trackName: String,
+        artistName: String,
+        albumName: String? = null,
+        refreshCache: Boolean = false,
+    ): List<LrclibLyrics>
+}

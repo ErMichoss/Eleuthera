@@ -1,10 +1,8 @@
 package com.tuapp.eleuthera.data.metadata
 
-import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
 import com.tuapp.eleuthera.data.settings.LibrarySettings
@@ -25,18 +23,21 @@ class LyricsSubtitleWriter @Inject constructor(
     class StaleTrackException : IOException("La canción cambió antes de guardar sus subtítulos.")
 
     suspend fun readLocal(uri: Uri): String? = withContext(Dispatchers.IO) {
-        val destination = destination(uri)
-        val baseName = destination.displayName.substringBeforeLast('.', destination.displayName)
+        val displayName = queryDisplayName(uri)
+            ?: throw IOException("No se pudo leer el nombre del archivo multimedia.")
+        val baseName = displayName.substringBeforeLast('.', displayName)
+        if (uri.authority == "media") {
+            return@withContext readPrivateSidecar(uri, baseName, "lrc")
+                ?: readPrivateSidecar(uri, baseName, "srt")
+        }
         val externalLyrics = try {
+            val destination = documentTreeDestination(uri)
             destination.read("$baseName.lrc")?.takeIf(String::isNotBlank)
                 ?: destination.read("$baseName.srt")?.takeIf(String::isNotBlank)
         } catch (e: CancellationException) {
             throw e
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.w(TAG, "No se pudieron leer subtítulos junto al audio $uri; se probará la copia local.", e)
-            null
-        } catch (e: SecurityException) {
-            Log.w(TAG, "Sin permiso para leer subtítulos junto al audio $uri; se probará la copia local.", e)
             null
         }
         externalLyrics ?: readPrivateSidecar(uri, baseName, "lrc")
@@ -49,8 +50,9 @@ class LyricsSubtitleWriter @Inject constructor(
         isStillCurrent: () -> Boolean,
     ): String = withContext(Dispatchers.IO) {
         ensureCurrent(isStillCurrent)
-        val destination = destination(uri)
-        val baseName = destination.displayName.substringBeforeLast('.', destination.displayName)
+        val displayName = queryDisplayName(uri)
+            ?: throw IOException("No se pudo leer el nombre del archivo multimedia.")
+        val baseName = displayName.substringBeforeLast('.', displayName)
         val cues = parseLrc(lyrics)
         val outputs = buildList {
             add(SubtitleOutput("$baseName.lrc", "text/plain", lyrics.trim() + "\n"))
@@ -75,6 +77,7 @@ class LyricsSubtitleWriter @Inject constructor(
                     " (Android no permite crear subtítulos externos dentro de Música)."
             }
         }
+        val destination = documentTreeDestination(uri)
         val saved = outputs.mapNotNull { output ->
             ensureCurrent(isStillCurrent)
             if (destination.exists(output.name)) null
@@ -86,10 +89,6 @@ class LyricsSubtitleWriter @Inject constructor(
         if (saved.isEmpty()) "Ya existía una letra local junto al archivo."
         else "Letra guardada junto al archivo: ${saved.joinToString(" y ") { ".$it" }}."
     }
-
-    private suspend fun destination(uri: Uri): SubtitleDestination =
-        if (uri.authority == "media") mediaStoreDestination(uri)
-        else documentTreeDestination(uri)
 
     private fun readPrivateSidecar(uri: Uri, baseName: String, extension: String): String? {
         val file = privateSidecarFile(uri, "$baseName.$extension")
@@ -117,83 +116,6 @@ class LyricsSubtitleWriter @Inject constructor(
         } finally {
             if (temporary.exists() && !temporary.delete()) {
                 Log.w(TAG, "No se pudo eliminar el temporal ${temporary.name}.")
-            }
-        }
-    }
-
-    private suspend fun mediaStoreDestination(uri: Uri): SubtitleDestination {
-        val resolver = context.contentResolver
-        val info = resolver.query(
-            uri,
-            arrayOf(OpenableColumns.DISPLAY_NAME, MediaStore.MediaColumns.RELATIVE_PATH),
-            null,
-            null,
-            null,
-        )?.use { cursor ->
-            if (!cursor.moveToFirst()) null else {
-                cursor.getString(0) to cursor.getString(1)
-            }
-        } ?: throw IOException("No se pudo localizar el archivo multimedia en el almacenamiento.")
-        val (displayName, relativePath) = info
-        if (displayName.isNullOrBlank() || relativePath.isNullOrBlank()) {
-            throw IOException("No se pudo determinar la carpeta del archivo multimedia.")
-        }
-        val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-
-        return object : SubtitleDestination {
-            override val displayName = displayName
-
-            override fun exists(name: String): Boolean =
-                resolver.query(
-                    collection,
-                    arrayOf(MediaStore.MediaColumns._ID),
-                    "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
-                    arrayOf(relativePath, name),
-                    null,
-                )?.use { it.moveToFirst() }
-                    ?: throw IOException("No se pudo comprobar si ya existe el archivo $name.")
-
-            override fun read(name: String): String? {
-                val cursor = resolver.query(
-                    collection,
-                    arrayOf(MediaStore.MediaColumns._ID),
-                    "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
-                    arrayOf(relativePath, name),
-                    null,
-                ) ?: throw IOException("No se pudo comprobar si existe el archivo $name.")
-                val candidate = cursor.use {
-                    if (it.moveToFirst()) {
-                        android.content.ContentUris.withAppendedId(collection, it.getLong(0))
-                    } else {
-                        null
-                    }
-                } ?: return null
-                return resolver.openInputStream(candidate)?.bufferedReader(Charsets.UTF_8)?.use {
-                    it.readText()
-                } ?: throw IOException("No se pudo leer el archivo $name.")
-            }
-
-            override fun write(output: SubtitleOutput, isStillCurrent: () -> Boolean) {
-                ensureCurrent(isStillCurrent)
-                val values = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, output.name)
-                    put(MediaStore.MediaColumns.MIME_TYPE, output.mimeType)
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
-                    put(MediaStore.MediaColumns.IS_PENDING, 1)
-                }
-                val outputUri = resolver.insert(collection, values)
-                    ?: throw IOException("No se pudo crear el archivo ${output.name}.")
-                ensureCurrent(isStillCurrent)
-                resolver.openOutputStream(outputUri)?.bufferedWriter(Charsets.UTF_8)?.use {
-                    it.write(output.contents)
-                } ?: throw IOException("No se pudo escribir el archivo ${output.name}.")
-                ensureCurrent(isStillCurrent)
-                val published = ContentValues().apply {
-                    put(MediaStore.MediaColumns.IS_PENDING, 0)
-                }
-                check(resolver.update(outputUri, published, null, null) > 0) {
-                    "No se pudo publicar el archivo ${output.name}."
-                }
             }
         }
     }

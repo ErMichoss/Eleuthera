@@ -137,7 +137,7 @@ fun NowPlayingScreen(
 }
 
 @Composable
-fun LyricsCard(
+fun LyricsContent(
     text: String?,
     loading: Boolean,
     error: String?,

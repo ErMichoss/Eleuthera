@@ -20,6 +20,12 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
+class LrclibHttpException(
+    val statusCode: Int,
+    val retryAfterMs: Long?,
+    message: String,
+) : IOException(message)
+
 class LrclibLyricsNotFoundException : IOException("LRCLIB no encontró una letra que coincida.")
 
 @Serializable
@@ -40,7 +46,7 @@ private data class LyricsCacheFile(
 class LrclibService(
     private val cacheFile: File,
     appVersion: String = "1.0",
-) {
+) : LyricsSearchService {
 
     private val userAgent = "Eleuthera/$appVersion (https://github.com/ErMichoss/Eleuthera)"
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
@@ -52,11 +58,16 @@ class LrclibService(
     suspend fun searchLyrics(query: String): List<LrclibLyrics> =
         get("search", ListSerializer(LrclibLyrics.serializer()), "q" to query)
 
-    suspend fun searchLyricsByMetadata(
+    /**
+     * Serializa las búsquedas por metadatos: además de proteger la caché, esto aplica el
+     * intervalo mínimo entre llamadas. Las búsquedas forzadas omiten incluso la caché válida,
+     * lo que permite que el controlador reintente resultados vacíos.
+     */
+    override suspend fun searchLyricsByMetadata(
         trackName: String,
         artistName: String,
-        albumName: String? = null,
-        refreshCache: Boolean = false,
+        albumName: String?,
+        refreshCache: Boolean,
     ): List<LrclibLyrics> {
         val key = listOf(trackName, artistName, albumName.orEmpty())
             .joinToString("|") { it.trim().lowercase() }
@@ -110,6 +121,7 @@ class LrclibService(
     suspend fun getLyricsById(id: Long): LrclibLyrics =
         get("get/$id", LrclibLyrics.serializer())
 
+    /** Construye la petición REST y convierte estados HTTP no exitosos en errores tipados. */
     private suspend fun <T> get(
         path: String,
         strategy: DeserializationStrategy<T>,
@@ -130,11 +142,16 @@ class LrclibService(
                 val detail = connection.errorStream?.bufferedReader()
                     ?.use { it.readText() }.orEmpty().take(300)
                 if (code == 404) throw LrclibLyricsNotFoundException()
-                throw IOException(
-                    when (code) {
+                throw LrclibHttpException(
+                    statusCode = code,
+                    retryAfterMs = connection.getHeaderField("Retry-After")
+                        ?.toLongOrNull()
+                        ?.takeIf { it >= 0 }
+                        ?.times(1_000),
+                    message = when (code) {
                         429 -> "LRCLIB está limitando las peticiones; espera un momento y vuelve a intentarlo."
                         else -> "LRCLIB respondió $code. $detail".trim()
-                    }
+                    },
                 )
             }
             val body = connection.inputStream.bufferedReader(StandardCharsets.UTF_8)
@@ -183,6 +200,7 @@ class LrclibService(
         val temporaryFile = File(cacheFile.parentFile, "${cacheFile.name}.tmp")
         try {
             temporaryFile.writeText(json.encodeToString(LyricsCacheFile.serializer(), LyricsCacheFile(cache.values.toList())))
+            // Reemplazar desde un temporal evita dejar una caché parcial si la escritura falla.
             Files.move(
                 temporaryFile.toPath(),
                 cacheFile.toPath(),

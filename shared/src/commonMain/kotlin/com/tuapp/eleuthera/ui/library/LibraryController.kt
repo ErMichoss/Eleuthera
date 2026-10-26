@@ -13,19 +13,6 @@ enum class LibraryTab(val label: String) {
 
 data class LibraryGroup(val name: String, val subtitle: String, val tracks: List<Track>)
 
-data class FolderLyricsProgress(
-    val running: Boolean = false,
-    val completed: Int = 0,
-    val total: Int = 0,
-    val found: Int = 0,
-    val skipped: Int = 0,
-    val notFound: Int = 0,
-    val failed: Int = 0,
-    val currentTitle: String? = null,
-    val message: String? = null,
-    val failures: List<String> = emptyList(),
-)
-
 data class LibraryUiState(
     val loading: Boolean = true,
     val tab: LibraryTab = LibraryTab.SONGS,
