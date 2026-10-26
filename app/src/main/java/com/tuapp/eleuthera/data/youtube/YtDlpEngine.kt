@@ -107,6 +107,9 @@ class YtDlpEngine @Inject constructor(
     suspend fun search(query: String, limit: Int = 20): List<RemoteTrack> =
         resolve("ytsearch$limit:$query").tracks
 
+    suspend fun searchMusic(query: String, limit: Int = 1): List<RemoteTrack> =
+        resolve("https://music.youtube.com/search?q=$query").tracks
+
     /** Acepta búsquedas (ytsearchN:), vídeos y playlists de youtube.com o music.youtube.com. */
     suspend fun resolve(target: String): Resolved {
         ensureReady()
