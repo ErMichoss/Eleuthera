@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.tuapp.eleuthera.data.musicbrainz.Media
-import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzService
+import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzRepository
 import com.tuapp.eleuthera.data.musicbrainz.Recording
 import com.tuapp.eleuthera.data.musicbrainz.Release
 import com.tuapp.eleuthera.data.musicbrainz.Track
@@ -16,14 +16,9 @@ import kotlinx.coroutines.launch
 
 enum class SearchType { RECORDING, RELEASE }
 
-/**
- * Explorador de MusicBrainz: buscar canciones o álbumes y ver sus metadatos. Igual en Android
- * (MusicBrainzViewModel lo envuelve) y escritorio (AppGraph). El estado es de Compose, así que
- * la pantalla lo lee directamente.
- */
 class MusicBrainzController(
     private val scope: CoroutineScope,
-    private val service: MusicBrainzService,
+    private val repository: MusicBrainzRepository, // <-- Ahora inyectamos el repositorio
 ) {
     enum class TrackSyncStatus { PENDING, SYNCED, ERROR }
 
@@ -36,40 +31,32 @@ class MusicBrainzController(
     var isLoading by mutableStateOf(false)
     var errorMessage by mutableStateOf<String?>(null)
 
-    /** Aviso breve para la pantalla (Toast en Android, snackbar en escritorio). */
     var notice by mutableStateOf<String?>(null)
 
-    /** Se ha iniciado sesión en MusicBrainz en esta ejecución. */
     var loggedIn by mutableStateOf(false)
         private set
 
     var recordingsResult by mutableStateOf<List<Recording>>(emptyList())
     var releasesResult by mutableStateOf<List<Release>>(emptyList())
 
-    // Ventana de detalles
     var isModalOpen by mutableStateOf(false)
     var selectedRecording by mutableStateOf<Recording?>(null)
     var selectedRelease by mutableStateOf<Release?>(null)
     var selectedImageTitle by mutableStateOf<String?>(null)
     var selectedImageMbid by mutableStateOf<String?>(null)
 
-    /** Estado de sincronización de cada pista (clave: id de la pista o su título). */
     val trackSyncStatuses = mutableStateMapOf<String, TrackSyncStatus>()
-    /** Pistas que se están cargando de una en una. */
     val trackLoadingStates = mutableStateMapOf<String, Boolean>()
-    /** Álbum de origen, para poder volver a él desde una canción. */
     var previousRelease by mutableStateOf<Release?>(null)
 
-    val canLogIn: Boolean get() = service.canLogIn
+    val canLogIn: Boolean get() = repository.canLogIn
 
-    /** Página de MusicBrainz donde el usuario autoriza a la app. */
-    fun authorizeUrl(): String = service.authorizeUrl()
+    fun authorizeUrl(): String = repository.authorizeUrl()
 
-    /** Lo llama cada plataforma al recibir el código de la redirección de OAuth. */
     fun exchangeCodeForToken(code: String) {
         scope.launch {
             isLoading = true
-            val success = service.exchangeCodeForToken(code)
+            val success = repository.exchangeCodeForToken(code)
             isLoading = false
             loggedIn = success
             errorMessage = if (success) null else "Error al autenticar la sesión con MusicBrainz."
@@ -88,22 +75,18 @@ class MusicBrainzController(
             try {
                 val limit = limitInput.toIntOrNull() ?: 25
                 if (searchType == SearchType.RECORDING) {
-                    val query = buildString {
-                        append("recording:\"").append(escapeLucene(titleInput)).append("\" AND video:false")
-                        if (artistInput.isNotBlank()) {
-                            append(" AND artistname:\"").append(escapeLucene(artistInput)).append("\"")
-                        }
-                    }
-                    recordingsResult = service.searchRecordings(query, limit).recordings ?: emptyList()
+                    recordingsResult = repository.searchRecordings(
+                        title = titleInput,
+                        artist = artistInput,
+                        limit = limit
+                    ).recordings ?: emptyList()
                     releasesResult = emptyList()
                 } else {
-                    val query = buildString {
-                        append("release:\"").append(escapeLucene(titleInput)).append("\"")
-                        if (artistInput.isNotBlank()) {
-                            append(" AND artistname:\"").append(escapeLucene(artistInput)).append("\"")
-                        }
-                    }
-                    releasesResult = service.searchReleases(query, limit).releases ?: emptyList()
+                    releasesResult = repository.searchReleases(
+                        title = titleInput,
+                        artist = artistInput,
+                        limit = limit
+                    ).releases ?: emptyList()
                     recordingsResult = emptyList()
                 }
             } catch (e: Exception) {
@@ -113,9 +96,6 @@ class MusicBrainzController(
             }
         }
     }
-
-    private fun escapeLucene(str: String): String =
-        str.replace(Regex("([+\\-|!(){}\\[\\]^\"~*?:\\\\/])")) { "\\${it.value}" }
 
     fun openRecordingModal(recording: Recording, mbid: String?) {
         selectedRecording = recording
@@ -127,8 +107,8 @@ class MusicBrainzController(
         val id = recording.id ?: return
         scope.launch {
             try {
-                delay(1200.milliseconds) // Límite de MusicBrainz
-                val detailed = service.getRecordingDetails(id)
+                delay(1200.milliseconds)
+                val detailed = repository.getRecordingDetails(id)
                 selectedRecording = mergeBasic(recording, detailed)
             } catch (e: Exception) {
                 notice = "Error: ${e.message ?: "desconocido"}. Usando metadatos básicos."
@@ -147,7 +127,7 @@ class MusicBrainzController(
         scope.launch {
             try {
                 delay(1200.milliseconds)
-                val detailed = service.getReleaseDetails(id)
+                val detailed = repository.getReleaseDetails(id)
                 selectedRelease = release.copy(
                     date = detailed.date ?: release.date,
                     country = detailed.country ?: release.country,
@@ -168,6 +148,7 @@ class MusicBrainzController(
             val mediaList = currentRelease.media ?: return@launch
             val updatedMediaList = mutableListOf<Media>()
             for (mediaItem in mediaList) {
+                delay(1200.milliseconds)
                 val updatedTracks = mediaItem.tracks.orEmpty().map { loadSingleTrackDetail(it) }
                 updatedMediaList.add(mediaItem.copy(tracks = updatedTracks))
             }
@@ -179,9 +160,8 @@ class MusicBrainzController(
         val recordingId = track.recording?.id ?: return track
         val trackKey = track.id ?: track.title ?: return track
         return try {
-            delay(1200.milliseconds) // Límite de MusicBrainz
-            val detailed = service.getRecordingDetails(recordingId)
-            // El álbum abierto (selectedRelease) da el contexto: número de pista y disco.
+            delay(1200.milliseconds)
+            val detailed = repository.getRecordingDetails(recordingId) // <-- Llamada al repositorio
             val enriched = mergeWithParent(track.recording ?: Recording(), detailed, parentRelease = selectedRelease)
             trackSyncStatuses[trackKey] = TrackSyncStatus.SYNCED
             track.copy(recording = enriched)
@@ -198,7 +178,6 @@ class MusicBrainzController(
         scope.launch {
             trackLoadingStates[trackKey] = true
             val updatedTrack = loadSingleTrackDetail(track)
-            // Se sustituye solo la pista recargada.
             val updatedMediaList = currentRelease.media?.map { mediaItem ->
                 mediaItem.copy(
                     tracks = mediaItem.tracks?.map { t ->
@@ -214,13 +193,12 @@ class MusicBrainzController(
     fun openRecordingModalDirectly(recording: Recording, mbid: String?, parentRelease: Release? = null) {
         previousRelease = parentRelease
         selectedRecording = recording
-        selectedRelease = null // Se oculta el álbum para mostrar la canción
+        selectedRelease = null
         selectedImageTitle = recording.title
         selectedImageMbid = mbid
         isModalOpen = true
     }
 
-    /** Vuelve al álbum desde la ventana de una de sus canciones. */
     fun backToReleaseModal() {
         val rel = previousRelease ?: return
         selectedRelease = rel
@@ -238,11 +216,9 @@ class MusicBrainzController(
         selectedImageTitle = null
     }
 
-    /** Une la grabación de la búsqueda con su detalle sin perder lo que ya había. */
     private fun mergeBasic(base: Recording, detailed: Recording): Recording {
         val oldRelease = base.releases?.firstOrNull()
         val newRelease = detailed.releases?.firstOrNull()
-        // Del release viejo se mantienen los medios (pista/disco); del nuevo, fecha y estado.
         val mergedRelease = oldRelease?.copy(
             date = newRelease?.date ?: oldRelease.date,
             country = newRelease?.country ?: oldRelease.country,
@@ -258,10 +234,6 @@ class MusicBrainzController(
         )
     }
 
-    /**
-     * Igual que [mergeBasic], pero con el álbum abierto como base: así la ventana de la canción
-     * puede calcular su número de pista y disco.
-     */
     private fun mergeWithParent(base: Recording, detailed: Recording, parentRelease: Release?): Recording {
         val oldRelease = base.releases?.firstOrNull()
         val newRelease = detailed.releases?.firstOrNull()

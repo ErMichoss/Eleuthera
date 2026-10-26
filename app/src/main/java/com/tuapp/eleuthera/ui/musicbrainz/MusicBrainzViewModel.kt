@@ -6,6 +6,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tuapp.eleuthera.BuildConfig
+import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzRepository
 import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzService
 
 /**
@@ -16,10 +17,12 @@ class MusicBrainzViewModel : ViewModel() {
 
     val controller = MusicBrainzController(
         viewModelScope,
-        MusicBrainzService(
-            clientId = BuildConfig.MUSICBRAINZ_CLIENT_ID,
-            clientSecret = BuildConfig.MUSICBRAINZ_CLIENT_SECRET,
-            appVersion = BuildConfig.VERSION_NAME,
+        MusicBrainzRepository(
+            MusicBrainzService(
+                clientId = BuildConfig.MUSICBRAINZ_CLIENT_ID,
+                clientSecret = BuildConfig.MUSICBRAINZ_CLIENT_SECRET,
+                appVersion = BuildConfig.VERSION_NAME,
+            )
         ),
     )
 
