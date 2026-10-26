@@ -18,7 +18,7 @@ enum class SearchType { RECORDING, RELEASE }
 
 class MusicBrainzController(
     private val scope: CoroutineScope,
-    private val repository: MusicBrainzRepository, // <-- Ahora inyectamos el repositorio
+    private val repository: MusicBrainzRepository,
 ) {
     enum class TrackSyncStatus { PENDING, SYNCED, ERROR }
 
@@ -37,7 +37,10 @@ class MusicBrainzController(
         private set
 
     var recordingsResult by mutableStateOf<List<Recording>>(emptyList())
+    val cachedRecording = mutableStateMapOf<String, Recording>() //TODO: Usar Recording cacheado en modal de Recording
+
     var releasesResult by mutableStateOf<List<Release>>(emptyList())
+    val cachedReleases = mutableStateMapOf<String, Release>()
 
     var isModalOpen by mutableStateOf(false)
     var selectedRecording by mutableStateOf<Recording?>(null)
@@ -47,6 +50,8 @@ class MusicBrainzController(
 
     val trackSyncStatuses = mutableStateMapOf<String, TrackSyncStatus>()
     val trackLoadingStates = mutableStateMapOf<String, Boolean>()
+
+    var isReleaseDetailsLoading by mutableStateOf(false)
     var previousRelease by mutableStateOf<Release?>(null)
 
     val canLogIn: Boolean get() = repository.canLogIn
@@ -117,63 +122,103 @@ class MusicBrainzController(
     }
 
     fun openReleaseModal(release: Release) {
+        val releaseId = release.id
+
+        val existingCached = releaseId?.let { cachedReleases[it] }
+        if (existingCached != null && !existingCached.media.isNullOrEmpty()) {
+            selectedRelease = existingCached
+            selectedRecording = null
+            selectedImageTitle = existingCached.title
+            selectedImageMbid = existingCached.id
+            isModalOpen = true
+            return
+        }
+
         selectedRelease = release
         selectedRecording = null
         selectedImageTitle = release.title
         selectedImageMbid = release.id
         isModalOpen = true
 
-        val id = release.id ?: return
-        scope.launch {
-            try {
-                delay(1200.milliseconds)
-                val detailed = repository.getReleaseDetails(id)
-                selectedRelease = release.copy(
-                    date = detailed.date ?: release.date,
-                    country = detailed.country ?: release.country,
-                    status = detailed.status ?: release.status,
-                    trackCount = detailed.trackCount ?: release.trackCount,
-                    artistCredit = detailed.artistCredit ?: release.artistCredit,
-                    media = detailed.media ?: release.media,
-                )
-            } catch (e: Exception) {
-                e.printStackTrace()
+        val needsDetails = release.media.isNullOrEmpty() || release.media!!.all { it.tracks.isNullOrEmpty() }
+
+        if (releaseId != null && needsDetails) {
+            isReleaseDetailsLoading = true
+
+            scope.launch {
+                try {
+                    delay(1200.milliseconds)
+                    val detailed = repository.getReleaseDetails(releaseId)
+
+                    val merged = release.copy(
+                        date = detailed.date ?: release.date,
+                        country = detailed.country ?: release.country,
+                        status = detailed.status ?: release.status,
+                        trackCount = detailed.trackCount ?: release.trackCount,
+                        artistCredit = detailed.artistCredit ?: release.artistCredit,
+                        media = detailed.media ?: release.media
+                    )
+
+                    cachedReleases[releaseId] = merged
+                    selectedRelease = merged
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    isReleaseDetailsLoading = false // Se apaga al terminar
+                }
             }
         }
     }
 
+    var isBatchLoading by mutableStateOf(false)
+
     fun loadAllTracksDetails() {
         val currentRelease = selectedRelease ?: return
+        val releaseId = currentRelease.id ?: return
+
         scope.launch {
-            val mediaList = currentRelease.media ?: return@launch
-            val updatedMediaList = mutableListOf<Media>()
-            for (mediaItem in mediaList) {
-                delay(1200.milliseconds)
-                val updatedTracks = mediaItem.tracks.orEmpty().map { loadSingleTrackDetail(it) }
-                updatedMediaList.add(mediaItem.copy(tracks = updatedTracks))
+            isBatchLoading = true
+            try {
+                val mediaList = currentRelease.media ?: return@launch
+                val updatedMediaList = mutableListOf<Media>()
+                for (mediaItem in mediaList) {
+                    delay(1200.milliseconds)
+                    val updatedTracks = mediaItem.tracks.orEmpty().map { loadSingleTrackDetail(it) }
+                    updatedMediaList.add(mediaItem.copy(tracks = updatedTracks))
+                }
+                val updatedRelease = currentRelease.copy(media = updatedMediaList)
+                selectedRelease = updatedRelease
+                cachedReleases[releaseId] = updatedRelease
+                releasesResult = releasesResult.map { if (it.id == updatedRelease.id) updatedRelease else it }
+            } finally {
+                isBatchLoading = false
             }
-            selectedRelease = selectedRelease?.copy(media = updatedMediaList)
         }
     }
 
     private suspend fun loadSingleTrackDetail(track: Track): Track {
         val recordingId = track.recording?.id ?: return track
         val trackKey = track.id ?: track.title ?: return track
+        trackLoadingStates[trackKey] = true
+
         return try {
             delay(1200.milliseconds)
-            val detailed = repository.getRecordingDetails(recordingId) // <-- Llamada al repositorio
+            val detailed = repository.getRecordingDetails(recordingId)
             val enriched = mergeWithParent(track.recording ?: Recording(), detailed, parentRelease = selectedRelease)
             trackSyncStatuses[trackKey] = TrackSyncStatus.SYNCED
             track.copy(recording = enriched)
         } catch (e: Exception) {
             trackSyncStatuses[trackKey] = TrackSyncStatus.ERROR
             track
+        } finally {
+            trackLoadingStates[trackKey] = false
         }
     }
 
     fun reloadSingleTrack(track: Track) {
         val trackKey = track.id ?: track.title ?: return
         val currentRelease = selectedRelease ?: return
+        val releaseId = currentRelease.id ?: return // <-- Obtenemos el ID
 
         scope.launch {
             trackLoadingStates[trackKey] = true
@@ -185,7 +230,12 @@ class MusicBrainzController(
                     }
                 )
             }
-            selectedRelease = currentRelease.copy(media = updatedMediaList)
+            val updatedRelease = currentRelease.copy(media = updatedMediaList)
+            selectedRelease = updatedRelease
+
+            cachedReleases[releaseId] = updatedRelease
+
+            releasesResult = releasesResult.map { if (it.id == updatedRelease.id) updatedRelease else it }
             trackLoadingStates[trackKey] = false
         }
     }

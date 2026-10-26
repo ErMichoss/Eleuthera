@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -288,28 +289,35 @@ fun MetadataModal(viewModel: MusicBrainzController){
                             val artistName = rel.artistCredit?.joinToString(", ") { it.name ?: "" }.takeIf { !it.isNullOrBlank() } ?: "Desconocido"
                             val year = rel.date?.take(4) ?: "N/A"
 
-                            // Metadatos principales del álbum arriba
-                            item { MetadataRow("Artista / Banda:", artistName) }
-                            item { MetadataRow("Estado:", rel.status ?: "Álbum") }
-                            item { MetadataRow("Año de Lanzamiento:", year) }
-                            item { MetadataRow("País:", rel.country ?: "N/A") }
-                            item { MetadataRow("Total de Pistas:", rel.trackCount?.toString() ?: "N/A") }
-                            item { MetadataRow("Release MBID:", rel.id ?: "ID desconocido") }
+                            item(key = "meta_artist") { MetadataRow("Artista / Banda:", artistName) }
+                            item(key = "meta_status") { MetadataRow("Estado:", rel.status ?: "Álbum") }
+                            item(key = "meta_year") { MetadataRow("Año de Lanzamiento:", year) }
+                            item(key = "meta_country") { MetadataRow("País:", rel.country ?: "N/A") }
+                            item(key = "meta_tracks_count") { MetadataRow("Total de Pistas:", rel.trackCount?.toString() ?: "N/A") }
+                            item(key = "meta_mbid") { MetadataRow("Release MBID:", rel.id ?: "ID desconocido") }
 
-                            // Botón para cargar los detalles de las canciones bajo demanda
-                            item {
+                            item(key = "action_button") {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 AppButton(
                                     onClick = { viewModel.loadAllTracksDetails() },
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !viewModel.isBatchLoading
                                 ) {
-                                    Text("Cargar detalles de las canciones")
+                                    if (viewModel.isBatchLoading) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Cargando todas las canciones...")
+                                    } else {
+                                        Text("Cargar detalles de las canciones")
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
 
-                            // Separador y Título de la lista de canciones
-                            item {
+                            item(key = "section_header") {
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Canciones del Álbum",
@@ -319,117 +327,154 @@ fun MetadataModal(viewModel: MusicBrainzController){
                                 HorizontalDivider()
                             }
 
-                            // Procesamiento seguro de las pistas del álbum
-                            val allTracks = rel.media?.flatMap { media ->
-                                val discNumber = media.position ?: 1
-                                media.tracks.orEmpty().map { track ->
-                                    Triple(discNumber, track.number?.toIntOrNull() ?: 0, track)
-                                }
-                            }?.sortedWith(compareBy({ it.first }, { it.second }))
-
-                            if (!allTracks.isNullOrEmpty()) {
-                                allTracks.forEachIndexed { index, (disc, _, track) ->
-                                    val previousDisc = if (index > 0) allTracks[index - 1].first else -1
-
-                                    // Si es el primer elemento o el disco cambia respecto al anterior, inyectamos la cabecera
-                                    if (disc != previousDisc) {
-                                        item(key = "disc_${disc}_$index") {
-                                            Text(
-                                                text = "Disco $disc",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                                            )
-                                        }
+                            if (viewModel.isReleaseDetailsLoading) {
+                                item(key = "loading_indicator") {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 32.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(28.dp),
+                                            strokeWidth = 3.dp
+                                        )
                                     }
+                                }
+                            } else {
 
-                                    item(key = "track_${index}_${track.id ?: track.title}") {
-                                        val trackKey = track.id ?: track.title ?: ""
-                                        val syncStatus = viewModel.trackSyncStatuses[trackKey] ?: MusicBrainzController.TrackSyncStatus.PENDING
-                                        val isLoading = viewModel.trackLoadingStates[trackKey] == true
+                                val allTracks = rel.media?.flatMap { media ->
+                                    val discNumber = media.position ?: 1
+                                    media.tracks.orEmpty().map { track ->
+                                        Triple(discNumber, track.number?.toIntOrNull() ?: 0, track)
+                                    }
+                                }?.sortedWith(compareBy({ it.first }, { it.second }))
 
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    track.recording?.let { recording ->
-                                                        val mbidForCover = recording.releases?.firstOrNull()?.id ?: viewModel.selectedRelease?.id
-                                                        viewModel.openRecordingModalDirectly(recording, mbidForCover, parentRelease = viewModel.selectedRelease)
-                                                    }
-                                                }
-                                                .padding(vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "${track.number ?: "-"}. ${track.title ?: "Sin título"}",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.weight(1f)
-                                            )
+                                if (!allTracks.isNullOrEmpty()) {
+                                    allTracks.forEachIndexed { index, (disc, _, track) ->
+                                        val previousDisc = if (index > 0) allTracks[index - 1].first else -1
+
+                                        if (disc != previousDisc) {
+                                            item(key = "disc_${disc}_$index") {
+                                                Text(
+                                                    text = "Disco $disc",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                                                )
+                                            }
+                                        }
+
+                                        item(key = "track_${index}_${track.id ?: track.title}") {
+                                            val trackKey = track.id ?: track.title ?: ""
+                                            val syncStatus = viewModel.trackSyncStatuses[trackKey] ?: MusicBrainzController.TrackSyncStatus.PENDING
+                                            val isLoading = viewModel.trackLoadingStates[trackKey] == true
 
                                             Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .alpha(if (viewModel.isBatchLoading) 0.5f else 1.0f)
+                                                    .clickable(enabled = !viewModel.isBatchLoading) {
+                                                        track.recording?.let { recording ->
+                                                            val mbidForCover = recording.releases?.firstOrNull()?.id ?: viewModel.selectedRelease?.id
+                                                            viewModel.openRecordingModalDirectly(recording, mbidForCover, parentRelease = viewModel.selectedRelease)
+                                                        }
+                                                    }
+                                                    .padding(vertical = 6.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                // Animacion de carga
-                                                if (isLoading) {
-                                                    CircularProgressIndicator(
-                                                        modifier = Modifier.size(16.dp),
-                                                        strokeWidth = 2.dp
-                                                    )
-                                                } else {
-                                                    // Icono según el estado, que al hacer clic vuelve a disparar la recarga individual
-                                                    IconButton(
-                                                        onClick = { viewModel.reloadSingleTrack(track) },
-                                                        modifier = Modifier.size(24.dp)
+                                                Text(
+                                                    text = "${track.number ?: "-"}. ${track.title ?: "Sin título"}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier.size(24.dp),
+                                                        contentAlignment = Alignment.Center
                                                     ) {
-                                                        when (syncStatus) {
-                                                            MusicBrainzController.TrackSyncStatus.SYNCED -> {
-                                                                Icon(
-                                                                    imageVector = Icons.Default.CheckCircle,
-                                                                    contentDescription = "Sincronizado (Click para recargar)",
-                                                                    tint = Color(0xFF4CAF50),
-                                                                    modifier = Modifier.size(16.dp)
-                                                                )
-                                                            }
-                                                            MusicBrainzController.TrackSyncStatus.ERROR -> {
-                                                                Icon(
-                                                                    imageVector = Icons.Default.Error,
-                                                                    contentDescription = "Error (Click para reintentar)",
-                                                                    tint = Color(0xFFE53935),
-                                                                    modifier = Modifier.size(16.dp)
-                                                                )
-                                                            }
-                                                            MusicBrainzController.TrackSyncStatus.PENDING -> {
-                                                                // Un icono sutil de sincronización/recarga cuando está pendiente
-                                                                Icon(
-                                                                    imageVector = Icons.Default.Refresh,
-                                                                    contentDescription = "Cargar pista",
-                                                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                                                    modifier = Modifier.size(16.dp)
-                                                                )
+                                                        if (isLoading) {
+                                                            CircularProgressIndicator(
+                                                                modifier = Modifier.size(14.dp),
+                                                                strokeWidth = 2.dp
+                                                            )
+                                                        } else {
+                                                            IconButton(
+                                                                onClick = { viewModel.reloadSingleTrack(track) },
+                                                                modifier = Modifier.fillMaxSize(),
+                                                                enabled = !viewModel.isBatchLoading
+                                                            ) {
+                                                                when (syncStatus) {
+                                                                    MusicBrainzController.TrackSyncStatus.SYNCED -> {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.CheckCircle,
+                                                                            contentDescription = "Sincronizado",
+                                                                            tint = MaterialTheme.colorScheme.primary,
+                                                                            modifier = Modifier.size(16.dp)
+                                                                        )
+                                                                    }
+                                                                    MusicBrainzController.TrackSyncStatus.ERROR -> {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.Error,
+                                                                            contentDescription = "Error",
+                                                                            tint = MaterialTheme.colorScheme.secondary,
+                                                                            modifier = Modifier.size(16.dp)
+                                                                        )
+                                                                    }
+                                                                    MusicBrainzController.TrackSyncStatus.PENDING -> {
+                                                                        Icon(
+                                                                            imageVector = Icons.Default.Refresh,
+                                                                            contentDescription = "Cargar pista",
+                                                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                                                            modifier = Modifier.size(16.dp)
+                                                                        )
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                     }
-                                                }
 
-                                                track.length?.let { lengthMs ->
-                                                    Text(
-                                                        text = formatDuration(lengthMs),
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                                                    )
+                                                    track.length?.let { lengthMs ->
+                                                        Text(
+                                                            text = formatDuration(lengthMs),
+                                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                                            ),
+                                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                                            modifier = Modifier.widthIn(min = 40.dp),
+                                                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                                                        )
+                                                    }
                                                 }
                                             }
+                                        }
+                                    }
+                                } else {
+                                    item(key = "no_tracks_message") {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 32.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "No tiene canciones",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
-                    }
+                        }
 
-                    // Fila inferior con el botón de Volver (si aplica) y el botón de Cerrar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
