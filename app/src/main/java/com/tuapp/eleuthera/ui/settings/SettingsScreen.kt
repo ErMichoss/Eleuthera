@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -51,6 +52,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -76,12 +78,13 @@ import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzActivity
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
 
-private enum class SettingsPage(val title: String, val icon: ImageVector) {
+enum class SettingsPage(val title: String, val icon: ImageVector) {
     APPEARANCE("Apariencia", Icons.Default.Palette),
     PROGRESS("Barra de progreso", Icons.Default.LinearScale),
     LIBRARY("Biblioteca", Icons.Default.LibraryMusic),
     DOWNLOADS("Descargas", Icons.Default.Download),
     ACCOUNT("Cuenta de YouTube", Icons.Default.AccountCircle),
+    MUSICBRAINZ("MusicBrainz", Icons.AutoMirrored.Filled.ManageSearch),
     ABOUT("Acerca de", Icons.Default.Info),
 }
 
@@ -93,14 +96,23 @@ private enum class SettingsPage(val title: String, val icon: ImageVector) {
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     vm: ThemeViewModel,
+    initialPage: SettingsPage? = null,
+    onPageOpened: () -> Unit = {},
     cookiesVm: CookiesViewModel = hiltViewModel(),
     downloadsVm: DownloadSettingsViewModel = hiltViewModel(),
     libraryVm: LibrarySettingsViewModel = hiltViewModel(),
     skinVm: ProgressSkinViewModel = hiltViewModel(),
     aboutVm: AboutViewModel = hiltViewModel(),
 ) {
-    var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
+    var page by rememberSaveable { mutableStateOf<SettingsPage?>(initialPage) }
     val back = { page = null }
+
+    LaunchedEffect(initialPage) {
+        if (initialPage != null) {
+            page = initialPage
+            onPageOpened()
+        }
+    }
 
     when (page) {
         SettingsPage.APPEARANCE -> AppearanceSettingsPage(vm, back, modifier)
@@ -108,6 +120,7 @@ fun SettingsScreen(
         SettingsPage.LIBRARY -> LibrarySettingsPage(libraryVm, back, modifier)
         SettingsPage.DOWNLOADS -> DownloadSettingsPage(downloadsVm, back, modifier)
         SettingsPage.ACCOUNT -> AccountSettingsPage(cookiesVm, back, modifier)
+        SettingsPage.MUSICBRAINZ -> MusicBrainzSettingsPage(back, modifier)
         SettingsPage.ABOUT -> AboutPage(aboutVm, back, modifier)
         null -> SettingsMenu(
             modifier = modifier,
@@ -141,7 +154,6 @@ private fun SettingsMenu(
                 },
             )
         }
-        MusicBrainzSection()
     }
 }
 
@@ -173,25 +185,56 @@ private fun rememberSubtitles(
         },
         SettingsPage.DOWNLOADS to format.label,
         SettingsPage.ACCOUNT to if (cookies) "Sesión guardada" else "Sin cookies",
+        SettingsPage.MUSICBRAINZ to "Buscar metadatos y álbumes",
         SettingsPage.ABOUT to "Versión ${about.appVersion}",
     )
 }
 
 /*MusicBrainz*/
 @Composable
-private fun MusicBrainzSection() {
+private fun MusicBrainzSettingsPage(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzViewModel = hiltViewModel(),
+) {
     val context = LocalContext.current
+    BackHandler(onBack = onBack)
 
-    SectionTitle("Music Brainz")
-    Column(
-        Modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    // Proveemos los toasts y la carga de imágenes tal como lo tenías en la Activity
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.tuapp.eleuthera.ui.platform.LocalToast provides { msg -> android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show() },
+        com.tuapp.eleuthera.ui.platform.LocalRemoteImage provides { url, mod ->
+            coil.compose.AsyncImage(
+                model = url,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = mod
+            )
+        }
     ) {
-        AppButton(
-            onClick = { context.startActivity(Intent(context, MusicBrainzActivity::class.java)) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Buscar en MusicBrainz")
+        Column(modifier = modifier.fillMaxSize()) {
+            // Barra superior propia de la sub-página de ajustes
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                }
+                Text("MusicBrainz", style = MaterialTheme.typography.titleLarge)
+            }
+
+            // Contenido principal de MusicBrainz dentro de la misma vista de Ajustes
+            com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzContent(
+                viewModel = viewModel.controller,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                onLogin = { viewModel.startOAuthLogin(context) }
+            )
         }
     }
 }

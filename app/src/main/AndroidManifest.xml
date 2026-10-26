@@ -33,20 +33,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-
-        <!-- Inicio de sesión en YouTube para obtener las cookies -->
-        <activity
-            android:name=".ui.login.CookieLoginActivity"
-            android:exported="false" />
-
-        <!-- Activity para probar las funcionalidades de MusicBrainz con soporte OAuth -->
-        <activity
-            android:name=".ui.musicbrainz.MusicBrainzActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize">
-
-            <!-- Filtro para capturar el callback de OAuth de MusicBrainz -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -58,6 +44,12 @@
                     android:host="oauth" />
             </intent-filter>
         </activity>
+
+        <!-- Inicio de sesión en YouTube para obtener las cookies -->
+        <activity
+            android:name=".ui.login.CookieLoginActivity"
+            android:exported="false" />
+
         <!-- Reproductor: sigue sonando en segundo plano y publica la notificación multimedia -->
         <service
             android:name=".playback.PlaybackService"

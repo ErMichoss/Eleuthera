@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -56,6 +57,7 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import com.tuapp.eleuthera.ui.platform.LocalToast
 import com.tuapp.eleuthera.ui.library.TrackActions
+import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzViewModel
 import com.tuapp.eleuthera.ui.player.MiniPlayer
 import com.tuapp.eleuthera.ui.player.NowPlayingScreen
 import com.tuapp.eleuthera.ui.player.PlayerViewModel
@@ -65,6 +67,7 @@ import com.tuapp.eleuthera.ui.playlists.PlaylistsScreen
 import com.tuapp.eleuthera.ui.playlists.PlaylistsViewModel
 import com.tuapp.eleuthera.ui.playlists.QuickPlaylistsOverlay
 import com.tuapp.eleuthera.ui.search.SearchScreen
+import com.tuapp.eleuthera.ui.settings.SettingsPage
 import com.tuapp.eleuthera.ui.settings.SettingsScreen
 import com.tuapp.eleuthera.ui.settings.ThemeViewModel
 import com.tuapp.eleuthera.ui.theme.AppTheme
@@ -86,11 +89,16 @@ private enum class Section(val label: String, val icon: ImageVector) {
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private var openPlayerRequest by mutableStateOf(false)
+    private val musicBrainzViewModel: MusicBrainzViewModel by viewModels()
+
+    var initialSettingsPage by mutableStateOf<SettingsPage?>(null)
+        private set
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openPlayerRequest = intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)
         intent.removeExtra(EXTRA_OPEN_PLAYER)
+        handleOAuthRedirect(intent)
         enableEdgeToEdge()
         setContent {
             // Android 13+: sin este permiso no se ve el progreso de las descargas.
@@ -121,6 +129,8 @@ class MainActivity : ComponentActivity() {
                     themeVm = themeVm,
                     openPlayerRequest = openPlayerRequest,
                     onOpenPlayerRequestHandled = { openPlayerRequest = false },
+                    initialSettingsPage = initialSettingsPage,
+                    onInitialSettingsPageHandled = { initialSettingsPage = null }
                 )
             }
         }
@@ -129,8 +139,22 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+
         openPlayerRequest = intent.getBooleanExtra(EXTRA_OPEN_PLAYER, false)
         intent.removeExtra(EXTRA_OPEN_PLAYER)
+
+        handleOAuthRedirect(intent)
+    }
+
+    private fun handleOAuthRedirect(intent: Intent?) {
+        val uri = intent?.data
+        if (uri != null && uri.scheme == "com.tuapp.eleuthera" && uri.host == "oauth") {
+            val authCode = uri.getQueryParameter("code")
+            if (!authCode.isNullOrBlank()) {
+                musicBrainzViewModel.exchangeCodeForToken(authCode)
+                initialSettingsPage = SettingsPage.MUSICBRAINZ
+            }
+        }
     }
 
     companion object {
@@ -145,9 +169,19 @@ private fun AppRoot(
     themeVm: ThemeViewModel = hiltViewModel(),
     openPlayerRequest: Boolean,
     onOpenPlayerRequestHandled: () -> Unit,
+    initialSettingsPage: SettingsPage?,
+    onInitialSettingsPageHandled: () -> Unit,
 ) {
     var section by rememberSaveable { mutableStateOf(Section.SEARCH) }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
+
+    // Si la Activity recibe una orden de abrir una página de ajustes específica (por el OAuth)
+    LaunchedEffect(initialSettingsPage) {
+        if (initialSettingsPage != null) {
+            section = Section.SETTINGS
+        }
+    }
+
     // Canción o lista para la que se está eligiendo playlist (null = diálogo cerrado).
     var playlistTarget by remember { mutableStateOf<PlaylistTarget?>(null) }
     LaunchedEffect(openPlayerRequest) {
@@ -195,7 +229,10 @@ private fun AppRoot(
                             Section.entries.forEach { item ->
                                 NavigationBarItem(
                                     selected = item == section,
-                                    onClick = { section = item },
+                                    onClick = {
+                                        if (item != Section.SETTINGS) onInitialSettingsPageHandled()
+                                        section = item
+                                    },
                                     icon = { Icon(item.icon, contentDescription = null) },
                                     label = { Text(item.label) },
                                 )
@@ -210,7 +247,12 @@ private fun AppRoot(
                         Section.SEARCH -> SearchScreen(modifier)
                         Section.LIBRARY -> LibraryScreen(modifier, trackActions)
                         Section.PLAYLISTS -> PlaylistsScreen(modifier, trackActions, playlistsVm)
-                        Section.SETTINGS -> SettingsScreen(modifier, themeVm)
+                        Section.SETTINGS -> SettingsScreen(
+                            modifier = modifier,
+                            vm = themeVm,
+                            initialPage = initialSettingsPage,
+                            onPageOpened = onInitialSettingsPageHandled
+                        )
                     }
 
                     // Playlists rápidas: botón arrastrable por encima de la pantalla actual.
@@ -236,7 +278,7 @@ private fun AppRoot(
                 AddToPlaylistDialog(target, playlistsVm.controller, onDismiss = { playlistTarget = null })
             }
 
-            // Reproductor a pantalla completa, por encima de todo.
+            // Reproductor a pantalla completa, por encima de tudu.
             AnimatedVisibility(
                 visible = showPlayer,
                 enter = slideInVertically { it },
