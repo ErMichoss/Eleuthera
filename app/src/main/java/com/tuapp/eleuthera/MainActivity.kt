@@ -221,7 +221,7 @@ private fun AppRoot(
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     val modifier = Modifier.fillMaxSize()
                     when (section) {
-                        Section.SEARCH -> SearchScreen(modifier)
+                        Section.SEARCH -> SearchScreen(modifier, trackActions, playlistsVm.controller)
                         Section.LIBRARY -> LibraryScreen(modifier, trackActions, lyricsVm = lyricsVm)
                         Section.PLAYLISTS -> PlaylistsScreen(modifier, trackActions, playlistsVm)
                         Section.SETTINGS -> SettingsScreen(modifier, themeVm)

@@ -85,7 +85,9 @@ abstract class PlaylistDao {
     @Transaction
     open suspend fun addToNamed(name: String, trackId: Long, position: Int) {
         val id = findIdByName(name) ?: insert(PlaylistEntity(name = name))
-        insertTracks(listOf(PlaylistTrackEntity(id, trackId, position)))
+        // Posición negativa = al final (descargas que el usuario manda a una playlist suya).
+        val pos = if (position < 0) (maxPosition(id) ?: -1) + 1 else position
+        insertTracks(listOf(PlaylistTrackEntity(id, trackId, pos)))
     }
 
     /** Reescribe el orden completo de la playlist. */
