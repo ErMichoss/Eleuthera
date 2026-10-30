@@ -115,3 +115,58 @@ private fun resultMessage(added: Int, total: Int, playlist: String): String = wh
     added == 0 -> "Todas ya estaban en $playlist"
     else -> "$added canciones añadidas a $playlist (${total - added} ya estaban)"
 }
+/**
+ * Elegir a qué playlist irá algo que aún no está descargado (Buscar > "Descargar en
+ * playlist…"): devuelve el nombre de una existente o de una nueva, que se crea al terminar.
+ * [subject] es lo que se va a añadir (el título del vídeo o de la playlist de YouTube).
+ */
+@Composable
+fun ChoosePlaylistDialog(
+    subject: String,
+    vm: PlaylistsController,
+    onPick: (playlistName: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val playlists by vm.playlists.collectAsState()
+    var newName by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Descargar en playlist") },
+        text = {
+            Column {
+                Text(subject, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 240.dp)) {
+                    items(playlists, key = { it.id }) { playlist ->
+                        ListItem(
+                            modifier = Modifier.clickable {
+                                onPick(playlist.name)
+                                onDismiss()
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(playlist.name) },
+                            supportingContent = { Text("${playlist.trackCount} canciones") },
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    singleLine = true,
+                    label = { Text("Nueva playlist") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = newName.isNotBlank(),
+                onClick = {
+                    onPick(newName.trim())
+                    onDismiss()
+                },
+            ) { Text("Crear y descargar") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
+}

@@ -21,6 +21,7 @@ import com.tuapp.eleuthera.data.youtube.DesktopYtDlp
 import com.tuapp.eleuthera.data.youtube.Resolved
 import com.tuapp.eleuthera.domain.model.DownloadStatus
 import com.tuapp.eleuthera.domain.model.RemoteTrack
+import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.platform.DesktopPaths
 import com.tuapp.eleuthera.platform.Tools
 import com.tuapp.eleuthera.playback.DesktopPlayerController
@@ -35,6 +36,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -88,6 +91,17 @@ object AppGraph {
                 override suspend fun enqueue(track: RemoteTrack, playlist: String?, index: Int) =
                     downloads.enqueue(track, playlist, index)
                 override fun cancel(videoId: String) = downloads.cancel(videoId)
+
+                // La biblioteca se relee al terminar cada descarga: puede tardar un momento.
+                override suspend fun trackFor(videoId: String, waitMs: Long): Track? {
+                    val trackId = database.downloadDao().trackIdFor(videoId) ?: return null
+                    return withTimeoutOrNull(waitMs.coerceAtLeast(1_000)) {
+                        library.tracks
+                            .map { all -> all?.firstOrNull { it.id == trackId } }
+                            .filterNotNull()
+                            .first()
+                    }
+                }
             },
         )
     }

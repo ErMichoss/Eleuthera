@@ -183,7 +183,7 @@ private fun App() {
                                         scope.launch { AppGraph.libraryModel.delete(track)?.let(toast) }
                                     },
                                     emptyHint = "Aún no hay música.\n" +
-                                        "Busca algo para descargar o añade una carpeta en Ajustes > Biblioteca.",
+                                            "Busca algo para descargar o añade una carpeta en Ajustes > Biblioteca.",
                                 )
                                 Section.PLAYLISTS -> PlaylistsContent(
                                     vm = AppGraph.playlists,
@@ -196,6 +196,8 @@ private fun App() {
                                     SearchContent(
                                         AppGraph.search,
                                         Modifier.weight(1f).fillMaxHeight(),
+                                        actions = actions,
+                                        playlists = AppGraph.playlists,
                                         header = { ImportPanel() },
                                     )
                                     VerticalDivider()
