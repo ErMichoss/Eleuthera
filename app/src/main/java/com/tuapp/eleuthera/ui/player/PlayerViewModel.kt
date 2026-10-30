@@ -29,7 +29,10 @@ class PlayerViewModel @Inject constructor(
         skins.active.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     override val state: StateFlow<PlayerState> = player.state
-
+    val currentMediaUri: StateFlow<String?> = state
+        .map { it.mediaUri }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     /** Solo qué suena y si está en pausa: las listas no se recomponen por otros cambios. */
     val nowPlaying: StateFlow<NowPlaying> = player.state
         .map { NowPlaying(it.mediaId, it.isPlaying) }
@@ -43,13 +46,14 @@ class PlayerViewModel @Inject constructor(
             delay(500)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(2_000), 0L)
-
     fun play(tracks: List<Track>, index: Int) = player.play(tracks, index)
     fun playShuffled(tracks: List<Track>) = player.playShuffled(tracks)
     fun playNext(track: Track) = player.playNext(track)
     fun addToQueue(track: Track) = player.addToQueue(track)
     fun playNextAll(tracks: List<Track>) = player.playNext(tracks)
     fun addAllToQueue(tracks: List<Track>) = player.addToQueue(tracks)
+    fun updateTrack(oldTrackId: Long, updatedTrack: Track) =
+        player.updateTrack(oldTrackId, updatedTrack)
 
     override fun toggle() = player.toggle()
     override fun next() = player.next()

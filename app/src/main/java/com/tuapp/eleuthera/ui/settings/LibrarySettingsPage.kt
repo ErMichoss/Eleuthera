@@ -77,7 +77,10 @@ private fun LibraryFoldersSection(vm: LibrarySettingsViewModel) {
     Column(Modifier.padding(horizontal = 16.dp)) {
         FolderRow("Music/Eleuthera (descargas)", onRemove = null)
         folders.forEach { folder ->
-            FolderRow(folder.label) { vm.remove(folder) }
+            FolderRow(
+                label = folder.label,
+                onRemove = { vm.remove(folder) },
+            )
         }
         TextButton(onClick = { picker.launch(null) }) {
             Icon(Icons.Default.CreateNewFolder, contentDescription = null)
@@ -100,7 +103,8 @@ private fun LibraryFoldersSection(vm: LibrarySettingsViewModel) {
                 FolderRow(
                     label = path.trimEnd('/').ifEmpty { "Almacenamiento completo" },
                     icon = Icons.Default.FolderOff,
-                ) { vm.removeLegacy(path) }
+                    onRemove = { vm.removeLegacy(path) },
+                )
             }
         }
     }

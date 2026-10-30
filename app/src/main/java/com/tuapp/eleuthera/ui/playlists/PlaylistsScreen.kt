@@ -23,7 +23,6 @@ fun PlaylistsScreen(
     actions: TrackActions = TrackActions(),
     vm: PlaylistsViewModel = hiltViewModel(),
 ) {
-    // A quién avisar cuando el usuario elija la imagen.
     var onPicked by remember { mutableStateOf<((Uri) -> Unit)?>(null) }
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()

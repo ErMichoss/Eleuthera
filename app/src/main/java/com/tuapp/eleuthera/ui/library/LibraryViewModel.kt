@@ -15,17 +15,15 @@ import kotlinx.coroutines.launch
  * La búsqueda, las pestañas y los grupos los lleva el controlador.
  */
 @HiltViewModel
-class LibraryViewModel @Inject constructor(private val library: MediaLibrary) : ViewModel() {
+class LibraryViewModel @Inject constructor(
+    private val library: MediaLibrary,
+) : ViewModel() {
 
     val controller = LibraryController()
     val state = controller.state
 
     private var job: Job? = null
 
-    /**
-     * Llamar cuando el permiso de lectura esté concedido. Cada llamada (al entrar en la
-     * biblioteca) vuelve a mirar las carpetas añadidas; la suscripción solo se crea una vez.
-     */
     fun start() {
         library.refreshFolders()
         if (job != null) return
@@ -34,10 +32,8 @@ class LibraryViewModel @Inject constructor(private val library: MediaLibrary) : 
         }
     }
 
-    /**
-     * Borra la canción del dispositivo. Devuelve un IntentSender si Android pide confirmación
-     * al usuario; la lista se actualiza sola cuando el archivo desaparece.
-     */
+    /** Borra la canción del dispositivo. Devuelve un IntentSender si Android pide confirmación. */
     suspend fun delete(track: Track): IntentSender? =
         runCatching { library.delete(track) }.getOrNull()
+
 }

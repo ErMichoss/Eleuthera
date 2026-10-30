@@ -21,7 +21,7 @@ import androidx.sqlite.execSQL
         PlaylistRequestEntity::class,
         FolderTrackEntity::class,
     ],
-    version = 4,
+    version = 6,
     exportSchema = false,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -69,8 +69,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v5: conserva la ruta de migración de instalaciones que crearon la tabla temporal. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `track_lyrics` (`trackId` INTEGER NOT NULL, " +
+                        "`text` TEXT NOT NULL, PRIMARY KEY(`trackId`))"
+                )
+            }
+        }
+
+        /** v6: retira la tabla temporal usada para persistir letras descargadas de subtítulos. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("DROP TABLE IF EXISTS `track_lyrics`")
+            }
+        }
+
         /** Todas, en orden: las usan Android y escritorio al abrir la base de datos. */
-        val MIGRATIONS: Array<Migration> get() = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        val MIGRATIONS: Array<Migration> get() = arrayOf(
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
+        )
     }
 }
 

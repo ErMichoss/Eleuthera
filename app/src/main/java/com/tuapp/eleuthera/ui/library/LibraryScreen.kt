@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.ui.lyrics.LyricsViewModel
 import kotlinx.coroutines.launch
 
 private val audioPermission =
@@ -45,12 +47,13 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
     actions: TrackActions = TrackActions(),
     vm: LibraryViewModel = hiltViewModel(),
+    lyricsVm: LyricsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     var granted by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, audioPermission) ==
-                    PackageManager.PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED
         )
     }
     val launcher =
@@ -63,15 +66,14 @@ fun LibraryScreen(
         return
     }
 
-    // ---- Borrado de canciones ----
     val scope = rememberCoroutineScope()
+    val folderLyricsProgress by lyricsVm.batchProgress.collectAsState()
     var awaitingConfirm by remember { mutableStateOf<Track?>(null) }
     val confirmLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         val track = awaitingConfirm
         awaitingConfirm = null
-        // Android 11+ borra el archivo al aceptar; en Android 10 solo da permiso y hay que repetir.
         if (result.resultCode == Activity.RESULT_OK && track != null &&
             Build.VERSION.SDK_INT < Build.VERSION_CODES.R
         ) {
@@ -83,6 +85,8 @@ fun LibraryScreen(
         controller = vm.controller,
         actions = actions,
         modifier = modifier,
+        onSearchFolderLyrics = lyricsVm::toggleFolderSearch,
+        folderLyricsProgress = folderLyricsProgress,
         onConfirmDelete = { track ->
             scope.launch {
                 val sender = vm.delete(track)

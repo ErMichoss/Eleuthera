@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -45,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.ui.lyrics.LyricsBatchProgress
 import com.tuapp.eleuthera.ui.common.QueueMenuButton
 import com.tuapp.eleuthera.ui.common.SelectionBar
 import com.tuapp.eleuthera.ui.common.TrackRowArt
@@ -64,6 +69,8 @@ fun LibraryContent(
     controller: LibraryController,
     actions: TrackActions,
     onConfirmDelete: (Track) -> Unit,
+    onSearchFolderLyrics: ((LibraryGroup) -> Unit)? = null,
+    folderLyricsProgress: Map<String, LyricsBatchProgress> = emptyMap(),
     modifier: Modifier = Modifier,
     emptyHint: String = "Aún no hay música.\nDescarga algo desde Buscar.",
 ) {
@@ -72,6 +79,7 @@ fun LibraryContent(
     PlatformBackHandler(enabled = open != null) { controller.closeGroup() }
 
     var toDelete by remember { mutableStateOf<Track?>(null) }
+    var folderResult by remember { mutableStateOf<Pair<String, LyricsBatchProgress>?>(null) }
     val onDelete: (Track) -> Unit = { toDelete = it }
 
     // ---- Selección múltiple ----
@@ -151,7 +159,44 @@ fun LibraryContent(
                     LibraryTab.SONGS -> TrackList(state.tracks, actions, onDelete, selected, toggle)
                     LibraryTab.ARTISTS -> GroupList(state.artists, Icons.Default.Person, controller::openGroup)
                     LibraryTab.ALBUMS -> GroupList(state.albums, Icons.Default.Album, controller::openGroup)
-                    LibraryTab.FOLDERS -> GroupList(state.folders, Icons.Default.Folder, controller::openGroup)
+                    LibraryTab.FOLDERS -> GroupList(
+                        groups = state.folders,
+                        icon = Icons.Default.Folder,
+                        onOpen = controller::openGroup,
+                        trailingContent = onSearchFolderLyrics?.let { searchLyrics -> { group ->
+                            val progress = folderLyricsProgress[group.name]
+                            Column(horizontalAlignment = Alignment.End) {
+                                TextButton(
+                                    onClick = { searchLyrics(group) },
+                                    enabled = progress?.running == true ||
+                                        folderLyricsProgress.values.none { it.running },
+                                ) {
+                                    Text(if (progress?.running == true) "Parar" else "Lyrics")
+                                }
+                                if (progress != null && (progress.running || progress.message != null)) {
+                                    Text(
+                                        text = if (progress.running) {
+                                            "${progress.completed}/${progress.total}" +
+                                                (progress.currentTitle?.let { " · $it" } ?: "")
+                                        } else {
+                                            progress.message.orEmpty()
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .widthIn(max = 220.dp)
+                                            .clickable { folderResult = group.name to progress },
+                                        color = if (progress.failed > 0 && !progress.running) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    )
+                                }
+                            }
+                        } },
+                    )
                 }
             }
         }
@@ -171,6 +216,37 @@ fun LibraryContent(
                 }) { Text("Eliminar") }
             },
             dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Cancelar") } },
+        )
+    }
+
+    folderResult?.let { (folderName, progress) ->
+        AlertDialog(
+            onDismissRequest = { folderResult = null },
+            title = { Text("Letras · $folderName") },
+            text = {
+                val details = buildString {
+                    append(
+                        progress.message ?: buildString {
+                            append("${progress.completed}/${progress.total} canciones procesadas.")
+                            progress.currentTitle?.let { append("\nEn curso: $it") }
+                        }
+                    )
+                    if (progress.failures.isNotEmpty()) {
+                        append("\n\nErrores:\n")
+                        append(progress.failures.take(10).joinToString("\n"))
+                        if (progress.failures.size > 10) {
+                            append("\nY ${progress.failures.size - 10} errores más.")
+                        }
+                    }
+                }
+                Text(
+                    details,
+                    modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { folderResult = null }) { Text("Cerrar") }
+            },
         )
     }
 }
@@ -236,6 +312,12 @@ private fun TrackMenu(track: Track, actions: TrackActions, onDelete: (Track) -> 
                 text = { Text("Añadir a playlist") },
                 onClick = { open = false; actions.onAddToPlaylist(track) },
             )
+            actions.onTrim?.let { onTrim ->
+                DropdownMenuItem(
+                    text = { Text("Recortar contenido") },
+                    onClick = { open = false; onTrim(track) },
+                )
+            }
             HorizontalDivider()
             DropdownMenuItem(
                 text = { Text("Eliminar del dispositivo", color = MaterialTheme.colorScheme.error) },
@@ -250,6 +332,7 @@ private fun GroupList(
     groups: List<LibraryGroup>,
     icon: ImageVector,
     onOpen: (LibraryGroup) -> Unit,
+    trailingContent: (@Composable (LibraryGroup) -> Unit)? = null,
 ) {
     LazyColumn(Modifier.fillMaxSize()) {
         items(groups, key = { it.name }) { group ->
@@ -262,6 +345,7 @@ private fun GroupList(
                 supportingContent = {
                     Text(group.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
+                trailingContent = trailingContent?.let { content -> { content(group) } },
             )
         }
     }

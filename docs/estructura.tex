@@ -298,6 +298,8 @@ shared/
     │       ├── data/
     │       │   ├── db/              AppDatabase (Room v4), entidades y DAOs
     │       │   ├── importer/        ImportFileParser (CSV/TXT), TrackMatcher
+    │       │   ├── lrclib/          LyricsRepository, cliente REST LrclibService y modelos
+    │       │   ├── metadata/        Coincidencia exacta de letras
     │       │   ├── musicbrainz/     MusicBrainzModel, MusicBrainzService
     │       │   ├── playlist/        PlaylistStore (base común)
     │       │   ├── settings/        PreferenceStores, Theme/Download/PlayerSettings,
@@ -308,6 +310,7 @@ shared/
     │       └── ui/
     │           ├── common/          NowPlaying, TrackArt, Selection, QueueMenu
     │           ├── library/         LibraryController, LibraryContent, TrackActions
+    │           ├── lyrics/          LyricsController, flujo local→LRCLIB y lotes
     │           ├── musicbrainz/     MusicBrainzController, MusicBrainzContent
     │           ├── platform/        PlatformUi (expect + CompositionLocals)
     │           ├── player/          PlayerUi, MiniPlayer, NowPlayingScreen, SkinnedProgress
@@ -540,6 +543,7 @@ escritorio.
 \cod{PlaylistsController} & \cod{PlaylistsViewModel} (PlaylistRepository) & \cod{AppGraph.playlists} (DesktopPlaylistStore) \\
 \cod{ProgressSkinController} & \cod{ProgressSkinViewModel} (ProgressSkinRepository) & \cod{AppGraph.skins} (DesktopProgressSkinStore) \\
 \cod{MusicBrainzController} & \cod{MusicBrainzViewModel} (+ OAuth) & \cod{AppGraph.musicBrainz} \\
+\cod{LyricsController} + \cod{LyricsRepository} + \cod{LyricsStorage} & \cod{LyricsViewModel} + \cod{AndroidLyricsStorage} & Sin flujo LRCLIB en escritorio \\
 interfaz \cod{PlayerUi} & \cod{PlayerViewModel} & \cod{DesktopPlayerUi} \\
 interfaz \cod{ThemeUi} & \cod{ThemeViewModel} & \cod{DesktopThemeUi} \\
 interfaz \cod{DownloadSettingsUi} & \cod{DownloadSettingsViewModel} & \cod{DesktopDownloadSettingsUi} \\
@@ -767,6 +771,8 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
   \ruta{data/library/MediaLibrary.kt} & Biblioteca: \cod{Music/Eleuthera} vía MediaStore (con
     etiquetas ID3) + carpetas extra; publicar y borrar archivos (con confirmación del sistema
     si Android la pide). \\
+  \ruta{data/library/AudioTrimmer.kt} & Genera el M4A/AAC con FFmpeg, conserva y verifica
+    metadatos y portada, valida la duración y delega en \cod{MediaLibrary} el reemplazo del original. \\
   \ruta{data/library/FolderLibrary.kt} & Carpetas añadidas en Ajustes, recorridas con el
     permiso del selector (SAF), sin MediaStore. Lista barata + etiquetas en segundo plano
     guardadas en \cod{folder\_tracks}. \\
@@ -780,7 +786,8 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
   \ruta{data/update/UpdateChecker.kt} & Última release de GitHub (API pública, cada 12\,h como
     mucho; versiones omitidas). \\
   \ruta{data/metadata/MetaDataManager.kt} & Metadatos de una canción (álbum, portada…) y
-    detección de canciones sin carátula o sin datos. \emph{En desarrollo: aún no lo usa nadie.} \\
+    detección de canciones sin carátula o sin datos. También aporta la portada incrustada o
+    de MediaStore al proceso de recorte. \\
 \end{archivos}
 
 \section{Reproducción}
@@ -800,6 +807,17 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
     \cod{SearchViewModel}. \\
   \ruta{ui/library/*} & \cod{LibraryScreen} (permiso de lectura y confirmación de borrado
     alrededor de \cod{LibraryContent}) y \cod{LibraryViewModel}. \\
+  \ruta{ui/lyrics/*} & \cod{LyricsScreen} y \cod{LyricsViewModel} envuelven el contenido común
+    y el flujo compartido \cod{LyricsController}; el mismo ViewModel gestiona la pista activa
+    y los lotes de biblioteca. \cod{LyricsRepository} separa el flujo del cliente REST
+    \cod{LrclibService}; \cod{AndroidLyricsStorage} implementa lectura incrustada/local y
+    guardado SAF/MediaStore. \\
+  \ruta{ui/player/TrimEditorScreen.kt}, \ruta{TrimEditorContent.kt} &
+    \cod{TrimEditorScreen} conecta el ViewModel y la previsualización Android;
+    \cod{TrimEditorContent} presenta el estado y emite acciones mediante callbacks. \\
+  \ruta{ui/player/TrimEditorViewModel.kt}, \ruta{TrimEditorController.kt} &
+    El ViewModel expone el estado observable y gestiona el ciclo de vida; el controller aplica
+    las reglas de selección y coordina \cod{AudioTrimmer}. \\
   \ruta{ui/playlists/*} & \cod{PlaylistsScreen} (selector de fotos del sistema),
     \cod{PlaylistsViewModel} y \cod{QuickPlaylist.kt} (botón flotante arrastrable con todas
     las playlists). \\

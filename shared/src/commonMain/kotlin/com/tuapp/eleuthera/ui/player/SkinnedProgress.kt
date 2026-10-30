@@ -141,24 +141,191 @@ fun SkinnedSeekBar(
             drawCircle(playedColor, radius = 10.dp.toPx(), center = Offset(cx, cy))
         }
 
-        // Mantiene visible la imagen de destino incluso cuando el indicador llega al final.
         if (skin.skin.mode == TrackMode.CHASE) {
             skin.end?.let { image ->
-                val s = EndMarkerSize.toPx()
+                val size = EndMarkerSize.toPx()
                 drawImage(
                     image = image,
                     dstOffset = IntOffset(
-                        (pad + width - s / 2).roundToInt(),
-                        (cy - s / 2).roundToInt(),
+                        (pad + width - size / 2).roundToInt(),
+                        (cy - size / 2).roundToInt(),
                     ),
-                    dstSize = IntSize(s.roundToInt(), s.roundToInt()),
+                    dstSize = IntSize(size.roundToInt(), size.roundToInt()),
                 )
             }
         }
     }
 }
 
-/** Barra compacta del mini-reproductor, con el indicador propio si está configurado. */
+/**
+ * Barra con la skin activa. Los toques junto a los extremos ajustan la selección; los demás
+ * buscan en la previsualización sin cambiar los límites.
+ */
+@Composable
+fun SkinnedRangeSeekBar(
+    startMs: Long,
+    endMs: Long,
+    durationMs: Long,
+    skin: LoadedSkin?,
+    onRangeChange: (startMs: Long, endMs: Long) -> Unit,
+    modifier: Modifier = Modifier,
+    playheadMs: Long? = null,
+    onPlayheadChange: ((Long) -> Unit)? = null,
+    onPlayheadDragStart: (() -> Unit)? = null,
+) {
+    val rangeChange by rememberUpdatedState(onRangeChange)
+    val playheadChange by rememberUpdatedState(onPlayheadChange)
+    val playheadDragStart by rememberUpdatedState(onPlayheadDragStart)
+    val currentStart by rememberUpdatedState(startMs)
+    val currentEnd by rememberUpdatedState(endMs)
+    val currentPlayhead by rememberUpdatedState(playheadMs)
+    val playedColor = MaterialTheme.colorScheme.primary
+    val remainingColor = MaterialTheme.colorScheme.surfaceVariant
+
+    Canvas(
+        modifier.fillMaxWidth().height(72.dp)
+            .pointerInput(durationMs) {
+                if (durationMs <= 0) return@pointerInput
+                val pad = 22.dp.toPx()
+                fun update(x: Float) {
+                    val startX = pad + (size.width - 2 * pad) *
+                        currentStart.toFloat() / durationMs.toFloat()
+                    val endX = pad + (size.width - 2 * pad) *
+                        currentEnd.toFloat() / durationMs.toFloat()
+                    val handleRadius = 22.dp.toPx()
+                    if (currentPlayhead != null && playheadChange != null &&
+                        kotlin.math.abs(x - startX) > handleRadius &&
+                        kotlin.math.abs(x - endX) > handleRadius
+                    ) {
+                        playheadChange?.invoke(positionAt(x, pad, size.width.toFloat(), durationMs))
+                        return
+                    }
+                    val moveStart = kotlin.math.abs(x - startX) <= kotlin.math.abs(x - endX)
+                    val fraction = ((x - pad) / (size.width - 2 * pad)).coerceIn(0f, 1f)
+                    val value = ((fraction * durationMs.toFloat() / 1_000f).roundToInt() * 1_000L)
+                        .coerceIn(0, durationMs)
+                    val minimum = 1_000L.coerceAtMost(durationMs)
+                    if (moveStart) {
+                        rangeChange(value.coerceAtMost((currentEnd - minimum).coerceAtLeast(0)), currentEnd)
+                    } else {
+                        rangeChange(currentStart, value.coerceAtLeast((currentStart + minimum).coerceAtMost(durationMs)))
+                    }
+                }
+                detectTapGestures { update(it.x) }
+            }
+            .pointerInput(durationMs) {
+                if (durationMs <= 0) return@pointerInput
+                val pad = 22.dp.toPx()
+                var draggingHandle = 0
+                fun chooseHandle(x: Float) {
+                    val startX = pad + (size.width - 2 * pad) *
+                        currentStart.toFloat() / durationMs.toFloat()
+                    val endX = pad + (size.width - 2 * pad) *
+                        currentEnd.toFloat() / durationMs.toFloat()
+                    val startDistance = kotlin.math.abs(x - startX)
+                    val endDistance = kotlin.math.abs(x - endX)
+                    val headX = currentPlayhead?.let {
+                        pad + (size.width - 2 * pad) * it.toFloat() / durationMs.toFloat()
+                    }
+                    val headDistance = headX?.let { kotlin.math.abs(x - it) }
+                    val handleRadius = 22.dp.toPx()
+                    val playheadRadius = 32.dp.toPx()
+                    // El cabezal solo gana al inicio/fin cuando no se solapa con sus zonas táctiles.
+                    draggingHandle = when {
+                        headDistance != null && playheadChange != null &&
+                            headDistance <= playheadRadius &&
+                            startDistance > handleRadius && endDistance > handleRadius -> 2
+                        headDistance != null && playheadChange != null &&
+                            startDistance > handleRadius && endDistance > handleRadius -> 2
+                        startDistance <= endDistance -> 0
+                        else -> 1
+                    }
+                }
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        chooseHandle(it.x)
+                        if (draggingHandle == 2) playheadDragStart?.invoke()
+                    },
+                    onHorizontalDrag = { change, _ ->
+                        val value = positionAt(change.position.x, pad, size.width.toFloat(), durationMs)
+                        if (draggingHandle == 2) {
+                            playheadChange?.invoke(value)
+                        } else {
+                            val minimum = 1_000L.coerceAtMost(durationMs)
+                            if (draggingHandle == 0) {
+                                rangeChange(value.coerceAtMost((currentEnd - minimum).coerceAtLeast(0)), currentEnd)
+                            } else {
+                                rangeChange(currentStart, value.coerceAtLeast((currentStart + minimum).coerceAtMost(durationMs)))
+                            }
+                        }
+                    },
+                )
+            },
+    ) {
+        if (durationMs <= 0) return@Canvas
+        val pad = 22.dp.toPx()
+        val trackHeight = 20.dp.toPx()
+        val top = (size.height - trackHeight) / 2
+        val width = size.width - 2 * pad
+        val from = (startMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+        val to = (endMs.toFloat() / durationMs.toFloat()).coerceIn(from, 1f)
+        if (skin != null) {
+            drawSkinRange(from, to, skin, pad, top, width, trackHeight, playedColor, remainingColor)
+        } else {
+            drawRoundRect(
+                remainingColor, Offset(pad, top), Size(width, trackHeight),
+                cornerRadius = CornerRadius(trackHeight / 2),
+            )
+            drawRoundRect(
+                playedColor, Offset(pad + width * from, top), Size(width * (to - from), trackHeight),
+                cornerRadius = CornerRadius(trackHeight / 2),
+            )
+        }
+
+        val thumbSize = 40.dp.toPx()
+        for (fraction in listOf(from, to)) {
+            val cx = pad + width * fraction
+            val cy = size.height / 2
+            val thumb = skin?.thumb
+            if (thumb != null) {
+                drawImage(
+                    image = thumb,
+                    dstOffset = IntOffset((cx - thumbSize / 2).roundToInt(), (cy - thumbSize / 2).roundToInt()),
+                    dstSize = IntSize(thumbSize.roundToInt(), thumbSize.roundToInt()),
+                )
+            } else {
+                drawCircle(playedColor, radius = 11.dp.toPx(), center = Offset(cx, cy))
+            }
+        }
+
+        playheadMs?.let { position ->
+            val fraction = (position.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+            val x = pad + width * fraction
+            val barHeight = 56.dp.toPx()
+            val y = (size.height - barHeight) / 2
+            drawRoundRect(
+                color = Color.Black.copy(alpha = 0.75f),
+                topLeft = Offset(x - 4.dp.toPx(), y),
+                size = Size(8.dp.toPx(), barHeight),
+                cornerRadius = CornerRadius(4.dp.toPx()),
+            )
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(x - 2.dp.toPx(), y),
+                size = Size(4.dp.toPx(), barHeight),
+                cornerRadius = CornerRadius(2.dp.toPx()),
+            )
+        }
+    }
+}
+
+private fun positionAt(x: Float, pad: Float, width: Float, durationMs: Long): Long {
+    val fraction = ((x - pad) / (width - 2 * pad)).coerceIn(0f, 1f)
+    return ((fraction * durationMs.toFloat() / 1_000f).roundToInt() * 1_000L)
+        .coerceIn(0, durationMs)
+}
+
+/** Solo la barra, sin indicador ni gestos (mini-reproductor). */
 @Composable
 fun SkinnedTrack(fraction: Float, skin: LoadedSkin, modifier: Modifier = Modifier) {
     val playedColor = MaterialTheme.colorScheme.primary
@@ -189,14 +356,13 @@ fun SkinnedTrack(fraction: Float, skin: LoadedSkin, modifier: Modifier = Modifie
         )
         if (showEnd) {
             val image = requireNotNull(skin.end)
-            val markerSize = endSize
             drawImage(
                 image = image,
                 dstOffset = IntOffset(
-                    (trackRight - markerSize / 2).roundToInt(),
-                    ((size.height - markerSize) / 2).roundToInt(),
+                    (trackRight - endSize / 2).roundToInt(),
+                    ((size.height - endSize) / 2).roundToInt(),
                 ),
-                dstSize = IntSize(markerSize.roundToInt(), markerSize.roundToInt()),
+                dstSize = IntSize(endSize.roundToInt(), endSize.roundToInt()),
             )
         }
         if (thumb != null) {
@@ -208,6 +374,76 @@ fun SkinnedTrack(fraction: Float, skin: LoadedSkin, modifier: Modifier = Modifie
                     ((size.height - thumbSize) / 2).roundToInt(),
                 ),
                 dstSize = IntSize(thumbSize.roundToInt(), thumbSize.roundToInt()),
+            )
+        }
+    }
+}
+
+private fun DrawScope.drawSkinRange(
+    from: Float,
+    to: Float,
+    skin: LoadedSkin,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+    playedColor: Color,
+    remainingColor: Color,
+) {
+    val start = left + width * from
+    val end = left + width * to
+    val right = left + width
+    val path = Path().apply {
+        addRoundRect(RoundRect(left, top, right, top + height, CornerRadius(height / 2)))
+    }
+    val sideColor = skin.skin.sideColor?.let { Color(it) } ?: playedColor
+    val centerColor = skin.skin.centerColor?.let { Color(it) } ?: playedColor
+
+    clipPath(path) {
+        val mode = skin.skin.mode
+        if (mode == TrackMode.CHASE) {
+            drawRect(sideColor, Offset(left, top), Size(width, height))
+            val middleHeight = height * 0.42f
+            val middleTop = top + (height - middleHeight) / 2
+            drawRect(remainingColor, Offset(left, middleTop), Size(width, middleHeight))
+            clipRect(start, middleTop, end, middleTop + middleHeight) {
+                drawRect(centerColor, Offset(left, middleTop), Size(width, middleHeight))
+            }
+            return@clipPath
+        }
+
+        val played = skin.played
+        if (mode == TrackMode.REVEAL && played != null) {
+            drawStretched(played, left, top, width, height, alpha = 0.35f, filter = Desaturate)
+            clipRect(start, top, end, top + height) {
+                drawStretched(played, left, top, width, height)
+            }
+            return@clipPath
+        }
+
+        val remaining = skin.remaining
+        if (remaining == null) drawRect(remainingColor, Offset(left, top), Size(width, height))
+        else drawPart(remaining, mode, left, top, width, height)
+        if (played == null) {
+            clipRect(start, top, end, top + height) {
+                drawRect(playedColor, Offset(left, top), Size(width, height))
+            }
+        } else {
+            clipRect(start, top, end, top + height) {
+                drawPart(played, mode, left, top, width, height)
+            }
+        }
+    }
+    if (skin.skin.mode == TrackMode.CHASE) {
+        skin.end?.let { image ->
+            val markerSize = EndMarkerSize.toPx()
+            drawImage(
+                image = image,
+                dstOffset = IntOffset(
+                    (end - markerSize / 2).roundToInt(),
+                    (top + (height - markerSize) / 2).roundToInt(),
+                ),
+                dstSize = IntSize(markerSize.roundToInt(), markerSize.roundToInt()),
             )
         }
     }

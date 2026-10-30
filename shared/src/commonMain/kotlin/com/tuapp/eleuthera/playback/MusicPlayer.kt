@@ -21,6 +21,7 @@ data class QueueItem(
 
 data class PlayerState(
     val mediaId: String? = null,
+    val mediaUri: String? = null,
     val title: String = "",
     val artist: String = "",
     /** Carátula incrustada en el archivo (la miniatura del vídeo), si existe. */
