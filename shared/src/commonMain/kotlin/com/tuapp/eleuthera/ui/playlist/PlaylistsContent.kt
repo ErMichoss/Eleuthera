@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -323,36 +324,50 @@ private fun PlaylistDetail(
                         }
                     }
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        playlist.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        "${playlist.trackCount} canciones · ${formatTotal(playlist.durationMs)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AppButton(
-                            onClick = { actions.onPlay(local, 0) },
-                            enabled = local.isNotEmpty(),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null)
-                            Spacer(Modifier.width(4.dp))
-                            Text("Reproducir")
+                    // Título a la izquierda y los dos botones, pequeños e iguales, a la derecha.
+                    // Si no caben en la misma fila (móvil), los botones bajan, también a la derecha.
+                    val title: @Composable () -> Unit = {
+                        Column {
+                            Text(
+                                playlist.name,
+                                style = MaterialTheme.typography.headlineSmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                "${playlist.trackCount} canciones · ${formatTotal(playlist.durationMs)}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                        FilledTonalButton(
-                            onClick = { actions.onShuffle(local) },
-                            enabled = local.isNotEmpty(),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Icon(Icons.Default.Shuffle, contentDescription = null)
-                            Spacer(Modifier.width(4.dp))
-                            Text("Aleatorio")
+                    }
+                    val buttons: @Composable () -> Unit = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AppButton(onClick = { actions.onPlay(local, 0) }, enabled = local.isNotEmpty()) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Reproducir")
+                            }
+                            AppButton(onClick = { actions.onShuffle(local) }, enabled = local.isNotEmpty()) {
+                                Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Aleatorio")
+                            }
+                        }
+                    }
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        if (maxWidth >= 560.dp) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.weight(1f)) { title() }
+                                Spacer(Modifier.width(16.dp))
+                                buttons()
+                            }
+                        } else {
+                            Column(Modifier.fillMaxWidth()) {
+                                title()
+                                Spacer(Modifier.height(12.dp))
+                                Box(Modifier.align(Alignment.End)) { buttons() }
+                            }
                         }
                     }
                     Spacer(Modifier.height(8.dp))

@@ -98,7 +98,11 @@ abstract class PlaylistStore(
     suspend fun removeAll(playlistId: Long, trackIds: List<Long>) =
         trackIds.chunked(500).forEach { dao.removeTracks(playlistId, it) }
 
-    /** Canción recién descargada de una playlist de YouTube: va a la playlist homónima. */
+    /**
+     * Canción recién descargada que va a la playlist [playlistName] (se crea si no existe): la
+     * de YouTube con el mismo nombre, en su [position], o una elegida por el usuario con
+     * [APPEND] (al final).
+     */
     suspend fun addDownloaded(playlistName: String, trackId: Long, position: Int) =
         dao.addToNamed(playlistName, trackId, position)
 
@@ -112,7 +116,9 @@ abstract class PlaylistStore(
         dao.replaceTracks(playlistId, ids)
     }
 
-    private companion object {
-        const val COVER_MAX_PX = 800
+    companion object {
+        /** Posición para [addDownloaded]: al final de la playlist. */
+        const val APPEND = -1
+        private const val COVER_MAX_PX = 800
     }
 }
