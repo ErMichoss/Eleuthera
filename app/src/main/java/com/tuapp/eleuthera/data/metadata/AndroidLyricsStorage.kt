@@ -15,21 +15,9 @@ class AndroidLyricsStorage @Inject constructor(
     private val subtitleWriter: LyricsSubtitleWriter,
 ) : LyricsStorage {
 
-    /** Prioriza las letras incrustadas; si no existen, busca el LRC/SRT externo de la pista. */
+    /** Prioriza el LRC/SRT para que las correcciones del usuario prevalezcan sobre las incrustadas. */
     override suspend fun read(track: LyricsTrack): LocalLyricsResult {
         val uri = Uri.parse(track.uri)
-        var embeddedError: Throwable? = null
-        val embedded = try {
-            embeddedLyricsReader.read(uri)?.takeIf(String::isNotBlank)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            embeddedError = e
-            Log.w(TAG, "No se pudieron leer letras incrustadas de '${track.title}' ($uri).", e)
-            null
-        }
-        if (embedded != null) return LocalLyricsResult(text = embedded)
-
         var sidecarError: Throwable? = null
         val sidecar = try {
             subtitleWriter.readLocal(uri)?.takeIf(String::isNotBlank)
@@ -40,8 +28,20 @@ class AndroidLyricsStorage @Inject constructor(
             Log.w(TAG, "No se pudieron leer LRC/SRT de '${track.title}' ($uri).", e)
             null
         }
+        if (sidecar != null) return LocalLyricsResult(text = sidecar)
+
+        var embeddedError: Throwable? = null
+        val embedded = try {
+            embeddedLyricsReader.read(uri)?.takeIf(String::isNotBlank)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            embeddedError = e
+            Log.w(TAG, "No se pudieron leer letras incrustadas de '${track.title}' ($uri).", e)
+            null
+        }
         return LocalLyricsResult(
-            text = sidecar,
+            text = embedded,
             embeddedReadError = embeddedError,
             sidecarReadError = sidecarError,
         )
@@ -52,7 +52,13 @@ class AndroidLyricsStorage @Inject constructor(
         track: LyricsTrack,
         lyrics: String,
         isStillCurrent: () -> Boolean,
-    ): String = subtitleWriter.save(Uri.parse(track.uri), lyrics, isStillCurrent)
+        replaceExisting: Boolean,
+    ): String = subtitleWriter.save(
+        uri = Uri.parse(track.uri),
+        lyrics = lyrics,
+        isStillCurrent = isStillCurrent,
+        replaceExisting = replaceExisting,
+    )
 
     private companion object {
         const val TAG = "AndroidLyricsStorage"

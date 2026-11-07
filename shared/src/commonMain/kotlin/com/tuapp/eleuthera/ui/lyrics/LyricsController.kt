@@ -1,5 +1,6 @@
 package com.tuapp.eleuthera.ui.lyrics
 
+import com.tuapp.eleuthera.data.lrclib.LrclibLyrics
 import com.tuapp.eleuthera.data.lrclib.LrclibHttpException
 import com.tuapp.eleuthera.data.lrclib.LrclibLyricsNotFoundException
 import com.tuapp.eleuthera.data.lrclib.LyricsRepository
@@ -36,6 +37,7 @@ interface LyricsStorage {
         track: LyricsTrack,
         lyrics: String,
         isStillCurrent: () -> Boolean,
+        replaceExisting: Boolean = false,
     ): String
 }
 
@@ -161,6 +163,40 @@ class LyricsController(
             delay(retryDelayMs)
         }
         error("Flujo de reintentos LRCLIB finalizado sin resultado.")
+    }
+
+    suspend fun searchCandidates(
+        track: LyricsTrack,
+        trackName: String = track.title,
+        artistName: String = track.artist,
+    ): List<LrclibLyrics> {
+        require(trackName.isNotBlank()) {
+            "Falta el título para buscar alternativas."
+        }
+        return repository.searchCandidates(trackName, artistName, track.durationMs)
+    }
+
+    suspend fun saveCandidate(
+        track: LyricsTrack,
+        candidate: LrclibLyrics,
+        isStillCurrent: () -> Boolean,
+    ): LyricsLookupResult {
+        val lyrics = candidate.syncedLyrics?.takeIf(String::isNotBlank)
+            ?: candidate.plainLyrics?.takeIf(String::isNotBlank)
+            ?: error("La opción seleccionada no contiene letras.")
+        if (!isStillCurrent()) return LyricsLookupResult(null, fromLocal = false)
+        val saveMessage = storage.save(
+            track = track,
+            lyrics = lyrics,
+            isStillCurrent = isStillCurrent,
+            replaceExisting = true,
+        )
+        return LyricsLookupResult(
+            text = lyrics,
+            fromLocal = false,
+            hasSyncedLyrics = !candidate.syncedLyrics.isNullOrBlank(),
+            subtitleMessage = saveMessage,
+        )
     }
 
     /**

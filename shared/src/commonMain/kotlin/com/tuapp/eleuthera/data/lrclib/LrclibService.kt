@@ -8,6 +8,9 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
@@ -52,11 +55,18 @@ class LrclibService(
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     private val cacheMutex = Mutex()
     private var cacheLoaded = false
-    private var lastMetadataRequestAtMillis = 0L
+    private var lastSearchRequestAtMillis = 0L
     private val cache = linkedMapOf<String, LyricsCacheEntry>()
 
-    suspend fun searchLyrics(query: String): List<LrclibLyrics> =
-        get("search", ListSerializer(LrclibLyrics.serializer()), "q" to query)
+    override suspend fun searchLyrics(
+        query: String,
+        refreshCache: Boolean,
+    ): List<LrclibLyrics> {
+        val key = "q|${query.trim().lowercase()}"
+        return searchAndCache(key, refreshCache) {
+            get("search", ListSerializer(LrclibLyrics.serializer()), "q" to query)
+        }
+    }
 
     /**
      * Serializa las búsquedas por metadatos: además de proteger la caché, esto aplica el
@@ -71,6 +81,25 @@ class LrclibService(
     ): List<LrclibLyrics> {
         val key = listOf(trackName, artistName, albumName.orEmpty())
             .joinToString("|") { it.trim().lowercase() }
+            .let { "metadata|$it" }
+        return searchAndCache(key, refreshCache) {
+            get(
+                "search",
+                ListSerializer(LrclibLyrics.serializer()),
+                *buildList {
+                    add("track_name" to trackName)
+                    add("artist_name" to artistName)
+                    albumName?.let { add("album_name" to it) }
+                }.toTypedArray(),
+            )
+        }
+    }
+
+    private suspend fun searchAndCache(
+        key: String,
+        refreshCache: Boolean,
+        request: suspend () -> List<LrclibLyrics>,
+    ): List<LrclibLyrics> {
         return cacheMutex.withLock {
             withContext(Dispatchers.IO) {
                 loadCacheIfNeeded()
@@ -81,19 +110,11 @@ class LrclibService(
                     cache.remove(key)
                 }
 
-                val waitMs = MIN_METADATA_REQUEST_INTERVAL_MS -
-                    (System.currentTimeMillis() - lastMetadataRequestAtMillis)
+                val waitMs = MIN_SEARCH_REQUEST_INTERVAL_MS -
+                    (System.currentTimeMillis() - lastSearchRequestAtMillis)
                 if (waitMs > 0) delay(waitMs)
-                lastMetadataRequestAtMillis = System.currentTimeMillis()
-                val lyrics = get(
-                    "search",
-                    ListSerializer(LrclibLyrics.serializer()),
-                    *buildList {
-                        add("track_name" to trackName)
-                        add("artist_name" to artistName)
-                        albumName?.let { add("album_name" to it) }
-                    }.toTypedArray(),
-                )
+                lastSearchRequestAtMillis = System.currentTimeMillis()
+                val lyrics = request()
                 cache[key] = LyricsCacheEntry(key, now, lyrics)
                 trimCache(now)
                 persistCache()
@@ -145,9 +166,7 @@ class LrclibService(
                 throw LrclibHttpException(
                     statusCode = code,
                     retryAfterMs = connection.getHeaderField("Retry-After")
-                        ?.toLongOrNull()
-                        ?.takeIf { it >= 0 }
-                        ?.times(1_000),
+                        ?.let(::parseRetryAfterMs),
                     message = when (code) {
                         429 -> "LRCLIB está limitando las peticiones; espera un momento y vuelve a intentarlo."
                         else -> "LRCLIB respondió $code. $detail".trim()
@@ -163,6 +182,22 @@ class LrclibService(
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
+
+    private fun parseRetryAfterMs(value: String): Long? {
+        val seconds = value.trim().toLongOrNull()
+        if (seconds != null) {
+            return seconds.coerceAtLeast(0).coerceAtMost(MAX_RETRY_AFTER_MS / 1_000) * 1_000
+        }
+        return try {
+            (ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME)
+                .toInstant()
+                .toEpochMilli() - System.currentTimeMillis())
+                .coerceAtLeast(0)
+                .coerceAtMost(MAX_RETRY_AFTER_MS)
+        } catch (_: DateTimeParseException) {
+            null
+        }
+    }
 
     private fun loadCacheIfNeeded() {
         if (cacheLoaded) return
@@ -217,7 +252,8 @@ class LrclibService(
     private companion object {
         const val BASE = "https://lrclib.net"
         const val MAX_CACHE_ENTRIES = 2_000
-        const val MIN_METADATA_REQUEST_INTERVAL_MS = 1_000L
+        const val MIN_SEARCH_REQUEST_INTERVAL_MS = 1_000L
+        const val MAX_RETRY_AFTER_MS = 24L * 60 * 60 * 1_000
         const val CACHE_TTL_MS = 180L * 24 * 60 * 60 * 1_000
         const val NEGATIVE_CACHE_TTL_MS = 30L * 24 * 60 * 60 * 1_000
     }

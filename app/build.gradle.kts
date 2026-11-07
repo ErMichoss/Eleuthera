@@ -93,6 +93,8 @@ kotlin {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+
     // Código común con la versión de escritorio (modelos, tema, pantallas...)
     implementation(project(":shared"))
 

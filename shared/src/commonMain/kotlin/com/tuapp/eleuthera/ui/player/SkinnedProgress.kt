@@ -172,6 +172,7 @@ fun SkinnedRangeSeekBar(
     playheadMs: Long? = null,
     onPlayheadChange: ((Long) -> Unit)? = null,
     onPlayheadDragStart: (() -> Unit)? = null,
+    enabled: Boolean = true,
 ) {
     val rangeChange by rememberUpdatedState(onRangeChange)
     val playheadChange by rememberUpdatedState(onPlayheadChange)
@@ -184,8 +185,8 @@ fun SkinnedRangeSeekBar(
 
     Canvas(
         modifier.fillMaxWidth().height(72.dp)
-            .pointerInput(durationMs) {
-                if (durationMs <= 0) return@pointerInput
+            .pointerInput(durationMs, enabled) {
+                if (!enabled || durationMs <= 0) return@pointerInput
                 val pad = 22.dp.toPx()
                 fun update(x: Float) {
                     val startX = pad + (size.width - 2 * pad) *
@@ -213,8 +214,8 @@ fun SkinnedRangeSeekBar(
                 }
                 detectTapGestures { update(it.x) }
             }
-            .pointerInput(durationMs) {
-                if (durationMs <= 0) return@pointerInput
+            .pointerInput(durationMs, enabled) {
+                if (!enabled || durationMs <= 0) return@pointerInput
                 val pad = 22.dp.toPx()
                 var draggingHandle = 0
                 fun chooseHandle(x: Float) {

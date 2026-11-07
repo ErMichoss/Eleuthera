@@ -312,10 +312,10 @@ private fun TrackMenu(track: Track, actions: TrackActions, onDelete: (Track) -> 
                 text = { Text("Añadir a playlist") },
                 onClick = { open = false; actions.onAddToPlaylist(track) },
             )
-            actions.onTrim?.let { onTrim ->
+            actions.onEditAudio?.let { onEditAudio ->
                 DropdownMenuItem(
-                    text = { Text("Recortar contenido") },
-                    onClick = { open = false; onTrim(track) },
+                    text = { Text("Editar audio") },
+                    onClick = { open = false; onEditAudio(track) },
                 )
             }
             HorizontalDivider()

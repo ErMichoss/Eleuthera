@@ -34,15 +34,21 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -59,6 +65,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.tuapp.eleuthera.data.settings.LoadedSkin
+import com.tuapp.eleuthera.data.lrclib.LrclibLyrics
 import com.tuapp.eleuthera.playback.PlayerState
 import com.tuapp.eleuthera.playback.QueueItem
 import com.tuapp.eleuthera.playback.RepeatMode
@@ -143,8 +150,21 @@ fun LyricsContent(
     error: String?,
     positionMs: Long,
     subtitleMessage: String? = null,
+    candidates: List<LrclibLyrics> = emptyList(),
+    searchingCandidates: Boolean = false,
+    candidateSearchError: String? = null,
+    trackTitle: String = "",
+    trackArtist: String = "",
+    onSearchMore: () -> Unit = {},
+    onSearchManual: (String, String) -> Unit = { _, _ -> },
+    onSelectCandidate: (LrclibLyrics) -> Unit = {},
 ) {
     var expanded by rememberSaveable(text) { mutableStateOf(false) }
+    var showOtherLyrics by remember(trackTitle, trackArtist) { mutableStateOf(false) }
+    var showManualSearch by remember(trackTitle, trackArtist) { mutableStateOf(false) }
+    var manualSearchSubmitted by remember(trackTitle, trackArtist) { mutableStateOf(false) }
+    var manualTitle by rememberSaveable(trackTitle) { mutableStateOf(trackTitle) }
+    var manualArtist by rememberSaveable(trackArtist) { mutableStateOf(trackArtist) }
     val message = when {
         loading -> "Buscando letras…"
         error != null -> "No se pudieron leer las letras: $error"
@@ -164,7 +184,7 @@ fun LyricsContent(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 16.dp)
-            .heightIn(min = 88.dp, max = 240.dp)
+            .heightIn(min = 88.dp, max = 320.dp)
             .clickable(enabled = !text.isNullOrBlank()) { expanded = !expanded },
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -172,7 +192,11 @@ fun LyricsContent(
     ) {
         Column(
             Modifier.padding(16.dp).then(
-                if (expanded) Modifier.verticalScroll(rememberScrollState()) else Modifier,
+                if (expanded || candidates.isNotEmpty()) {
+                    Modifier.verticalScroll(rememberScrollState())
+                } else {
+                    Modifier
+                },
             ),
         ) {
             Text(
@@ -197,7 +221,7 @@ fun LyricsContent(
                         } else {
                             FontWeight.Normal
                         },
-                        maxLines = if (expanded) Int.MAX_VALUE else 1,
+                        maxLines = if (expanded || index == activeIndex) Int.MAX_VALUE else 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -206,8 +230,212 @@ fun LyricsContent(
                 Spacer(Modifier.height(8.dp))
                 Text(it, style = MaterialTheme.typography.bodySmall)
             }
+            if (!loading) {
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                    TextButton(
+                        onClick = { showOtherLyrics = true },
+                        enabled = !searchingCandidates,
+                    ) {
+                        if (searchingCandidates) {
+                            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Text(
+                                if (candidates.isEmpty()) "Buscando…" else "Guardando…",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        } else {
+                            Text("Otros Lyrics", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = showOtherLyrics,
+                        onDismissRequest = { showOtherLyrics = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(if (text.isNullOrBlank()) "Buscar coincidencias" else "Buscar otra versión")
+                            },
+                            onClick = {
+                                showOtherLyrics = false
+                                onSearchMore()
+                            },
+                            enabled = !searchingCandidates,
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Búsqueda manual") },
+                            onClick = {
+                                showOtherLyrics = false
+                                manualSearchSubmitted = false
+                                showManualSearch = true
+                            },
+                            enabled = !searchingCandidates,
+                        )
+                        candidates.forEach { candidate ->
+                            val candidateTitle =
+                                candidate.trackName?.takeIf(String::isNotBlank)
+                                    ?: candidate.name ?: "Título desconocido"
+                            val duration = candidate.durationSeconds?.let { formatLyricsDuration(it) }
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(candidateTitle, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            buildString {
+                                                append(candidate.artistName ?: "Artista desconocido")
+                                                candidate.albumName?.takeIf(String::isNotBlank)?.let {
+                                                    append(" · ")
+                                                    append(it)
+                                                }
+                                                duration?.let {
+                                                    append(" · ")
+                                                    append(it)
+                                                }
+                                                append(
+                                                    if (!candidate.syncedLyrics.isNullOrBlank()) {
+                                                        " · Sincronizadas"
+                                                    } else {
+                                                        " · Sin marcas de tiempo"
+                                                    },
+                                                )
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    showOtherLyrics = false
+                                    onSelectCandidate(candidate)
+                                },
+                                enabled = !searchingCandidates,
+                            )
+                        }
+                    }
+                }
+                candidateSearchError?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+        if (showManualSearch) {
+            AlertDialog(
+                onDismissRequest = { showManualSearch = false },
+                title = { Text("Búsqueda manual de letras") },
+                text = {
+                    Column(
+                        Modifier.fillMaxWidth()
+                            .heightIn(max = 480.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "Introduce el título y el artista para buscar otras coincidencias en LRCLIB.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        OutlinedTextField(
+                            value = manualTitle,
+                            onValueChange = { manualTitle = it },
+                            label = { Text("Título") },
+                            singleLine = true,
+                            enabled = !searchingCandidates,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        OutlinedTextField(
+                            value = manualArtist,
+                            onValueChange = { manualArtist = it },
+                            label = { Text("Artista") },
+                            singleLine = true,
+                            enabled = !searchingCandidates,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        TextButton(
+                            onClick = {
+                                manualSearchSubmitted = true
+                                onSearchManual(manualTitle, manualArtist)
+                            },
+                            enabled = !searchingCandidates && manualTitle.isNotBlank(),
+                            modifier = Modifier.align(Alignment.End),
+                        ) {
+                            Text("Buscar")
+                        }
+                        if (manualSearchSubmitted && searchingCandidates) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Text("  Buscando coincidencias…")
+                            }
+                        }
+                        if (manualSearchSubmitted && !searchingCandidates) {
+                            candidateSearchError?.let {
+                                Text(
+                                    it,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            if (candidateSearchError == null && candidates.isEmpty()) {
+                                Text("No se encontraron coincidencias para esos datos.")
+                            }
+                            candidates.forEach { candidate ->
+                                val title = candidate.trackName?.takeIf(String::isNotBlank)
+                                    ?: candidate.name ?: "Título desconocido"
+                                TextButton(
+                                    onClick = {
+                                        showManualSearch = false
+                                        onSelectCandidate(candidate)
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Column(Modifier.fillMaxWidth()) {
+                                        Text(
+                                            title,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            buildString {
+                                                append(candidate.artistName ?: "Artista desconocido")
+                                                candidate.albumName?.takeIf(String::isNotBlank)?.let {
+                                                    append(" · ")
+                                                    append(it)
+                                                }
+                                                candidate.durationSeconds?.let {
+                                                    append(" · ")
+                                                    append(formatLyricsDuration(it))
+                                                }
+                                                append(
+                                                    if (!candidate.syncedLyrics.isNullOrBlank()) {
+                                                        " · Sincronizadas"
+                                                    } else {
+                                                        " · Sin marcas de tiempo"
+                                                    },
+                                                )
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showManualSearch = false }) { Text("Cerrar") }
+                },
+            )
         }
     }
+}
+
+private fun formatLyricsDuration(seconds: Double): String {
+    val totalSeconds = seconds.toLong().coerceAtLeast(0)
+    return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
 }
 
 private data class LyricsLine(val startMs: Long?, val text: String)

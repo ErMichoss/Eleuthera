@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.system.Os
 import android.util.Log
 import com.tuapp.eleuthera.data.settings.LibrarySettings
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -48,31 +49,42 @@ class LyricsSubtitleWriter @Inject constructor(
         uri: Uri,
         lyrics: String,
         isStillCurrent: () -> Boolean,
+        replaceExisting: Boolean = false,
     ): String = withContext(Dispatchers.IO) {
         ensureCurrent(isStillCurrent)
         val displayName = queryDisplayName(uri)
             ?: throw IOException("No se pudo leer el nombre del archivo multimedia.")
         val baseName = displayName.substringBeforeLast('.', displayName)
         val cues = parseLrc(lyrics)
-        val outputs = buildList {
-            add(SubtitleOutput("$baseName.lrc", "text/plain", lyrics.trim() + "\n"))
-            if (cues.isNotEmpty()) {
-                add(SubtitleOutput("$baseName.srt", "application/x-subrip", cues.toSrt()))
+        val isSrt = cues.isEmpty() && SRT_TIMESTAMP.containsMatchIn(lyrics)
+        val outputs = if (isSrt) {
+            listOf(SubtitleOutput("$baseName.srt", "application/x-subrip", lyrics.trim() + "\n"))
+        } else {
+            buildList {
+                add(SubtitleOutput("$baseName.lrc", "text/plain", lyrics.trim() + "\n"))
+                if (cues.isNotEmpty()) {
+                    add(SubtitleOutput("$baseName.srt", "application/x-subrip", cues.toSrt()))
+                }
             }
         }
         if (uri.authority == "media") {
             val saved = outputs.filter { output ->
                 ensureCurrent(isStillCurrent)
                 val file = privateSidecarFile(uri, output.name)
-                if (file.isFile) false else {
-                    writePrivateSidecar(file, output.contents)
+                if (file.isFile && !replaceExisting) false else {
+                    writePrivateSidecar(file, output.contents, replaceExisting)
                     true
                 }
             }
             return@withContext if (saved.isEmpty()) {
                 "Ya existía una letra local en los datos de Eleuthera."
             } else {
-                "Letra guardada en los datos de Eleuthera: " +
+                val action = if (replaceExisting) {
+                    "Letra actualizada en los datos de Eleuthera"
+                } else {
+                    "Letra guardada en los datos de Eleuthera"
+                }
+                "$action: " +
                     saved.joinToString(" y ") { ".${it.extension}" } +
                     " (Android no permite crear subtítulos externos dentro de Música)."
             }
@@ -80,14 +92,17 @@ class LyricsSubtitleWriter @Inject constructor(
         val destination = documentTreeDestination(uri)
         val saved = outputs.mapNotNull { output ->
             ensureCurrent(isStillCurrent)
-            if (destination.exists(output.name)) null
+            if (destination.exists(output.name) && !replaceExisting) null
             else {
-                destination.write(output, isStillCurrent)
+                destination.write(output, isStillCurrent, replaceExisting)
                 output.extension
             }
         }
         if (saved.isEmpty()) "Ya existía una letra local junto al archivo."
-        else "Letra guardada junto al archivo: ${saved.joinToString(" y ") { ".$it" }}."
+        else {
+            val action = if (replaceExisting) "Letra actualizada junto al archivo" else "Letra guardada junto al archivo"
+            "$action: ${saved.joinToString(" y ") { ".$it" }}."
+        }
     }
 
     private fun readPrivateSidecar(uri: Uri, baseName: String, extension: String): String? {
@@ -102,7 +117,7 @@ class LyricsSubtitleWriter @Inject constructor(
         return File(File(File(context.filesDir, PRIVATE_SIDECAR_DIRECTORY), digest), name)
     }
 
-    private fun writePrivateSidecar(file: File, contents: String) {
+    private fun writePrivateSidecar(file: File, contents: String, replaceExisting: Boolean) {
         val parent = file.parentFile ?: throw IOException("No se pudo determinar la carpeta de subtítulos.")
         if (!parent.exists() && !parent.mkdirs()) {
             throw IOException("No se pudo crear la carpeta local de subtítulos.")
@@ -110,7 +125,9 @@ class LyricsSubtitleWriter @Inject constructor(
         val temporary = File(parent, "${file.name}.tmp")
         try {
             temporary.writeText(contents, Charsets.UTF_8)
-            if (!temporary.renameTo(file)) {
+            if (replaceExisting) {
+                Os.rename(temporary.absolutePath, file.absolutePath)
+            } else if (!temporary.renameTo(file)) {
                 throw IOException("No se pudo guardar el archivo local ${file.name}.")
             }
         } finally {
@@ -178,19 +195,52 @@ class LyricsSubtitleWriter @Inject constructor(
                 } ?: throw IOException("No se pudo leer el archivo $name.")
             }
 
-            override fun write(output: SubtitleOutput, isStillCurrent: () -> Boolean) {
+            override fun write(
+                output: SubtitleOutput,
+                isStillCurrent: () -> Boolean,
+                replaceExisting: Boolean,
+            ) {
                 ensureCurrent(isStillCurrent)
-                val outputUri = DocumentsContract.createDocument(
-                    resolver,
-                    parentUri,
-                    output.mimeType,
-                    output.name,
+                val existingUri = if (replaceExisting) findDocumentUri(output.name) else null
+                val outputUri = existingUri ?: DocumentsContract.createDocument(
+                    resolver, parentUri, output.mimeType, output.name,
                 ) ?: throw IOException("No se pudo crear el archivo ${output.name}.")
                 ensureCurrent(isStillCurrent)
-                resolver.openOutputStream(outputUri)?.bufferedWriter(Charsets.UTF_8)?.use {
+                val stream = if (existingUri != null) {
+                    resolver.openOutputStream(outputUri, "wt")
+                } else {
+                    resolver.openOutputStream(outputUri)
+                }
+                stream?.bufferedWriter(Charsets.UTF_8)?.use {
                     it.write(output.contents)
                 } ?: throw IOException("No se pudo escribir el archivo ${output.name}.")
                 ensureCurrent(isStillCurrent)
+            }
+
+            private fun findDocumentUri(name: String): Uri? {
+                val cursor = resolver.query(
+                    childrenUri,
+                    arrayOf(
+                        DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                        DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    ),
+                    null,
+                    null,
+                    null,
+                ) ?: throw IOException("No se pudo localizar el archivo $name.")
+                return cursor.use {
+                    val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                    val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                    if (idColumn < 0 || nameColumn < 0) {
+                        throw IOException("No se pudo localizar el archivo $name.")
+                    }
+                    generateSequence {
+                        if (cursor.moveToNext()) cursor.getString(idColumn) to cursor.getString(nameColumn) else null
+                    }.firstOrNull { it.second.equals(name, ignoreCase = true) }
+                        ?.let { (documentId, _) ->
+                            DocumentsContract.buildDocumentUriUsingTree(folder.treeUri, documentId)
+                        }
+                }
             }
         }
     }
@@ -259,7 +309,7 @@ class LyricsSubtitleWriter @Inject constructor(
         val displayName: String
         fun exists(name: String): Boolean
         fun read(name: String): String?
-        fun write(output: SubtitleOutput, isStillCurrent: () -> Boolean)
+        fun write(output: SubtitleOutput, isStillCurrent: () -> Boolean, replaceExisting: Boolean)
     }
 
     private data class SubtitleOutput(
@@ -276,7 +326,9 @@ class LyricsSubtitleWriter @Inject constructor(
         const val TAG = "LyricsSubtitleWriter"
         const val PRIVATE_SIDECAR_DIRECTORY = "lyrics-sidecars"
         val TIMESTAMP = Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?]""")
-        val SRT_TIMESTAMP = Regex("""\d{2}:\d{2}:\d{2},\d{3}\s+-->\s+\d{2}:\d{2}:\d{2},\d{3}""")
+        val SRT_TIMESTAMP = Regex(
+            """\d{2}:\d{2}:\d{2}[,.]\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}[,.]\d{3}""",
+        )
         const val MAX_CUE_DURATION_MS = 7_000L
         const val LAST_CUE_DURATION_MS = 5_000L
     }
