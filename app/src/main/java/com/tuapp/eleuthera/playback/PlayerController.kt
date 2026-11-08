@@ -277,14 +277,28 @@ class PlayerController @Inject constructor(
 
     /** Desactivado → repetir playlist → repetir canción → desactivado. */
     override fun cycleRepeat() {
+        val c = controller ?: return
+        val wasEnded = c.playbackState == Player.STATE_ENDED
         repeat = when (repeat) {
             RepeatMode.OFF -> RepeatMode.ALL
             RepeatMode.ALL -> RepeatMode.ONE
             RepeatMode.ONE -> RepeatMode.OFF
         }
-        val c = controller ?: return
         applyRepeatToPlayer(c)
         ensureNextCycle()
+        if (wasEnded) {
+            if (repeat == RepeatMode.ONE) {
+                c.seekTo(0L)
+            } else if (repeat == RepeatMode.ALL) {
+                if (c.currentMediaItemIndex < c.mediaItemCount - 1) {
+                    c.seekToDefaultPosition(c.currentMediaItemIndex + 1)
+                }
+            }
+            if (repeat != RepeatMode.OFF) {
+                c.prepare()
+                c.play()
+            }
+        }
         sync(c)
     }
 
