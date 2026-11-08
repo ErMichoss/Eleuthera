@@ -130,6 +130,13 @@ dependencies {
     implementation("androidx.media3:media3-session:$media3")
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Sincronizar con el PC: cámara (CameraX) y lectura de QR (ZXing).
+    val camerax = "1.4.1"
+    implementation("androidx.camera:camera-camera2:$camerax")
+    implementation("androidx.camera:camera-lifecycle:$camerax")
+    implementation("androidx.camera:camera-view:$camerax")
+    implementation("com.google.zxing:core:3.5.3")
+
     // Base de datos (playlists): está en :shared (Room multiplataforma).
 
     // Ajustes (tema)

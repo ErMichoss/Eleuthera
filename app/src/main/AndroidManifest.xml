@@ -14,6 +14,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Leer el QR de Sincronizar con el PC -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:name=".EleutheraApp"
@@ -23,6 +26,7 @@
         android:roundIcon="@mipmap/ic_eleuthera"
         android:label="Eleuthera"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
         <activity
@@ -41,6 +45,11 @@
             android:exported="false" />
 
         <!-- Activity para probar las funcionalidades de MusicBrainz con soporte OAuth -->
+        <activity
+            android:name=".ui.sync.SyncActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <activity
             android:name=".ui.musicbrainz.MusicBrainzActivity"
             android:exported="true"

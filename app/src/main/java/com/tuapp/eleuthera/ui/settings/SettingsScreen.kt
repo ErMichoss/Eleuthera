@@ -73,6 +73,7 @@ import com.tuapp.eleuthera.domain.model.ComponentStyle
 import com.tuapp.eleuthera.domain.model.ThemeConfig
 import com.tuapp.eleuthera.ui.login.CookieLoginActivity
 import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzActivity
+import com.tuapp.eleuthera.ui.sync.SyncActivity
 import com.tuapp.eleuthera.ui.theme.AppButton
 import com.tuapp.eleuthera.ui.theme.AppCard
 
@@ -141,7 +142,27 @@ private fun SettingsMenu(
                 },
             )
         }
+        SyncSection()
         MusicBrainzSection()
+    }
+}
+
+/** Sincronizar con el PC: canciones y playlists por la wifi, leyendo un QR. */
+@Composable
+private fun SyncSection() {
+    val context = LocalContext.current
+    SectionTitle("Sincronizar")
+    Column(
+        Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AppButton(
+            onClick = { context.startActivity(Intent(context, SyncActivity::class.java)) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Sincronizar con el PC")
+        }
+        SettingsHint("Lee con la cámara el código del PC (Ajustes > Sincronizar con el móvil) y cada uno recibe las canciones y playlists que le falten.")
     }
 }
 

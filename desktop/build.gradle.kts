@@ -21,6 +21,8 @@ dependencies {
     implementation(project(":shared"))
     implementation(compose.desktop.currentOs)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
+    // Generar el QR de Ajustes > Sincronizar con el móvil.
+    implementation("com.google.zxing:core:3.5.3")
 }
 
 // Igual que en Android: la versión sale de la etiqueta (v1.2.0 -> 1.2.0). Los instaladores
@@ -62,6 +64,7 @@ compose.desktop {
                 "jdk.charsets",
                 "jdk.localedata",
                 "jdk.accessibility",
+                "jdk.httpserver",   // servidor de Sincronizar con el móvil
             )
 
             windows {

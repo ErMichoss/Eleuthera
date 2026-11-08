@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -81,6 +82,7 @@ private enum class SettingsPage(val title: String, val icon: ImageVector) {
     DOWNLOADS("Descargas", Icons.Default.Download),
     ACCOUNT("Cuenta de YouTube", Icons.Default.AccountCircle),
     MUSICBRAINZ("MusicBrainz", Icons.AutoMirrored.Filled.ManageSearch),
+    SYNC("Sincronizar con el móvil", Icons.Default.Sync),
     ABOUT("Acerca de", Icons.Default.Info),
 }
 
@@ -105,6 +107,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         SettingsPage.DOWNLOADS -> DownloadSettingsPage(AppGraph.downloadSettingsUi, back, pageModifier)
         SettingsPage.ACCOUNT -> AccountPage(back, pageModifier)
         SettingsPage.MUSICBRAINZ -> MusicBrainzPage(back, pageModifier)
+        SettingsPage.SYNC -> SyncPage(back, pageModifier)
         SettingsPage.ABOUT -> AboutPage(back, pageModifier)
         null -> SettingsMenu(pageModifier) { page = it }
     }
@@ -129,6 +132,7 @@ private fun SettingsMenu(modifier: Modifier, onOpen: (SettingsPage) -> Unit) {
         SettingsPage.DOWNLOADS to format.label,
         SettingsPage.ACCOUNT to if (cookies) "Sesión guardada" else "Sin cookies",
         SettingsPage.MUSICBRAINZ to "Buscar metadatos de canciones y álbumes",
+        SettingsPage.SYNC to "Pasar canciones y playlists con un QR",
         SettingsPage.ABOUT to "Versión $appVersion",
     )
 

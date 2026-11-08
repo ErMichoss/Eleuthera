@@ -1,5 +1,7 @@
 package com.tuapp.eleuthera.desktop
 
+import com.tuapp.eleuthera.data.sync.DesktopSyncLibrary
+import com.tuapp.eleuthera.data.sync.SyncServer
 import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzService
 import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzController
 import com.tuapp.eleuthera.data.db.AppDatabase
@@ -73,6 +75,12 @@ object AppGraph {
     val downloads by lazy { DesktopDownloads(ytDlp, database.downloadDao(), library, playlistStore) }
     val imports by lazy { DesktopImports(ytDlp, downloads) }
 
+    /** Sincronizar con el móvil por la wifi (Ajustes > Sincronizar con el móvil). */
+    val syncLibrary by lazy {
+        DesktopSyncLibrary(database.downloadDao(), database.playlistDao(), playlistStore, library)
+    }
+    val syncServer by lazy { SyncServer(syncLibrary, computerName()) }
+
     /** Versión de la app (la pone Gradle al arrancar; "dev" si no se sabe). */
     val appVersion: String = System.getProperty("eleuthera.version") ?: "dev"
     val updates by lazy { DesktopUpdateChecker(stores, appVersion) }
@@ -139,3 +147,10 @@ object AppGraph {
         DesktopPlayerController(initialVolume = runBlocking { playerSettings.volume.first() })
     }
 }
+
+/** Nombre del equipo, para que el móvil sepa con qué PC está sincronizando. */
+private fun computerName(): String =
+    System.getenv("COMPUTERNAME")
+        ?: System.getenv("HOSTNAME")
+        ?: runCatching { java.net.InetAddress.getLocalHost().hostName }.getOrNull()
+        ?: "PC"

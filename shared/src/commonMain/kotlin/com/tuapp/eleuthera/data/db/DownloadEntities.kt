@@ -36,6 +36,10 @@ interface DownloadDao {
     @Query("DELETE FROM video_tracks WHERE videoId = :videoId")
     suspend fun forget(videoId: String)
 
+    /** Todas las canciones descargadas de YouTube (para sincronizar con otro dispositivo). */
+    @Query("SELECT * FROM video_tracks")
+    suspend fun allTracks(): List<VideoTrackEntity>
+
     /** Si la misma playlist ya pidió ese vídeo, se ignora (evita repetidos en una playlist). */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addRequest(request: PlaylistRequestEntity)
