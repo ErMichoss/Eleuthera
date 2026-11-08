@@ -21,11 +21,12 @@ import kotlinx.coroutines.delay
 
 /** Android integration: owns the ViewModel connection and ExoPlayer preview lifecycle. */
 @Composable
-fun TrimEditorScreen(
+fun AudioEditorScreen(
     track: Track,
     onClose: (Track?) -> Unit,
+    onLyricsSaved: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
-    vm: TrimEditorViewModel = hiltViewModel(),
+    vm: AudioEditorViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val skin by vm.progressSkin.collectAsStateWithLifecycle()
@@ -41,23 +42,38 @@ fun TrimEditorScreen(
             state.startMs > 0 || state.endMs < state.durationMs
 
     LaunchedEffect(track.id) { vm.load(track) }
+    LaunchedEffect(track.uri, state.trackUri, state.savedTab, state.savedLyrics) {
+        if (state.trackUri == track.uri.toString() &&
+            state.savedTab == AudioEditorTab.LYRICS
+        ) {
+            state.savedLyrics?.let { onLyricsSaved(track.uri.toString(), it) }
+        }
+    }
     DisposableEffect(preview, track.uri) {
         preview.setMediaItem(MediaItem.fromUri(track.uri))
         preview.prepare()
         onDispose { preview.release() }
     }
-    LaunchedEffect(preview, state.mode) {
+    LaunchedEffect(preview, state.mode, state.tab) {
         skipPending = false
+        if (state.tab == AudioEditorTab.VOLUME) {
+            preview.pause()
+            previewing = false
+        }
         preview.repeatMode =
-            if (state.mode == TrimMode.REMOVE_SELECTED) Player.REPEAT_MODE_ONE
+            if (state.tab == AudioEditorTab.LYRICS ||
+                (state.tab == AudioEditorTab.TRIM && state.mode == TrimMode.REMOVE_SELECTED)
+            ) Player.REPEAT_MODE_ONE
             else Player.REPEAT_MODE_OFF
     }
-    LaunchedEffect(previewing, state.startMs, state.endMs, state.durationMs, state.mode) {
+    LaunchedEffect(previewing, state.startMs, state.endMs, state.durationMs, state.mode, state.tab) {
         if (previewing) {
             skipPending = false
             while (previewing) {
                 val position = preview.currentPosition
-                if (state.mode == TrimMode.REMOVE_SELECTED && hasAudioAfterEdit) {
+                if (state.tab == AudioEditorTab.LYRICS) {
+                    playheadMs = position
+                } else if (state.mode == TrimMode.REMOVE_SELECTED && hasAudioAfterEdit) {
                     if (position in state.startMs until state.endMs) {
                         // Una búsqueda manual puede escuchar el intervalo; la reproducción normal lo omite.
                         if (!currentPlayFromSelectedSegment && !skipPending) {
@@ -84,7 +100,7 @@ fun TrimEditorScreen(
         }
     }
 
-    TrimEditorContent(
+    AudioEditorContent(
         track = track,
         state = state,
         skin = skin,
@@ -93,6 +109,12 @@ fun TrimEditorScreen(
         hasAudioAfterEdit = hasAudioAfterEdit,
         modifier = modifier,
         onClose = { onClose(state.updatedTrack) },
+        onTabChange = { tab ->
+            preview.pause()
+            previewing = false
+            playFromSelectedSegment = false
+            vm.setTab(tab)
+        },
         onModeChange = { mode ->
             preview.pause()
             previewing = false
@@ -111,7 +133,8 @@ fun TrimEditorScreen(
             playheadMs = position
             skipPending = false
             playFromSelectedSegment =
-                state.mode == TrimMode.REMOVE_SELECTED &&
+                state.tab == AudioEditorTab.TRIM &&
+                    state.mode == TrimMode.REMOVE_SELECTED &&
                     position in state.startMs until state.endMs
             preview.seekTo(position)
         },
@@ -129,6 +152,12 @@ fun TrimEditorScreen(
             skipPending = false
             vm.setEnd(state.endMs + step)
         },
+        onSegmentRangeChange = vm::setGainSegmentRange,
+        onSegmentGainChange = vm::setGainSegmentGain,
+        onAddSegment = vm::addGainSegment,
+        onRemoveSegment = vm::removeGainSegment,
+        onLyricsOffsetChange = vm::setLyricsOffset,
+        onLyricsLineStartChange = vm::setLyricsLineStart,
         onTogglePreview = {
             if (previewing) {
                 playheadMs = preview.currentPosition
@@ -136,6 +165,7 @@ fun TrimEditorScreen(
                 previewing = false
             } else {
                 val startPosition = when {
+                    state.tab == AudioEditorTab.LYRICS -> playheadMs.coerceIn(0, state.durationMs)
                     state.mode == TrimMode.KEEP_SELECTED && playheadMs >= state.endMs ->
                         state.startMs
                     else -> playheadMs.coerceIn(
@@ -146,7 +176,8 @@ fun TrimEditorScreen(
                 preview.seekTo(startPosition)
                 playheadMs = startPosition
                 playFromSelectedSegment =
-                    state.mode == TrimMode.REMOVE_SELECTED &&
+                    state.tab == AudioEditorTab.TRIM &&
+                        state.mode == TrimMode.REMOVE_SELECTED &&
                         startPosition in state.startMs until state.endMs
                 preview.play()
                 previewing = true

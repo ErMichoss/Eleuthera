@@ -771,8 +771,9 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
   \ruta{data/library/MediaLibrary.kt} & Biblioteca: \cod{Music/Eleuthera} vía MediaStore (con
     etiquetas ID3) + carpetas extra; publicar y borrar archivos (con confirmación del sistema
     si Android la pide). \\
-  \ruta{data/library/AudioTrimmer.kt} & Genera el M4A/AAC con FFmpeg, conserva y verifica
-    metadatos y portada, valida la duración y delega en \cod{MediaLibrary} el reemplazo del original. \\
+  \ruta{data/library/AudioTrimmer.kt}, \ruta{AudioGainProcessor.kt} & Recorte y ganancia por
+    segmentos delegan el procesamiento FFmpeg a \cod{AudioFileProcessor}, que valida duración,
+    conserva metadatos y portada y usa \cod{MediaLibrary} para sustituir el original. \\
   \ruta{data/library/FolderLibrary.kt} & Carpetas añadidas en Ajustes, recorridas con el
     permiso del selector (SAF), sin MediaStore. Lista barata + etiquetas en segundo plano
     guardadas en \cod{folder\_tracks}. \\
@@ -811,13 +812,15 @@ Rutas relativas a \ruta{app/src/main/java/com/tuapp/eleuthera/}.
     y el flujo compartido \cod{LyricsController}; el mismo ViewModel gestiona la pista activa
     y los lotes de biblioteca. \cod{LyricsRepository} separa el flujo del cliente REST
     \cod{LrclibService}; \cod{AndroidLyricsStorage} implementa lectura incrustada/local y
-    guardado SAF/MediaStore. \\
-  \ruta{ui/player/TrimEditorScreen.kt}, \ruta{TrimEditorContent.kt} &
-    \cod{TrimEditorScreen} conecta el ViewModel y la previsualización Android;
-    \cod{TrimEditorContent} presenta el estado y emite acciones mediante callbacks. \\
-  \ruta{ui/player/TrimEditorViewModel.kt}, \ruta{TrimEditorController.kt} &
-    El ViewModel expone el estado observable y gestiona el ciclo de vida; el controller aplica
-    las reglas de selección y coordina \cod{AudioTrimmer}. \\
+    guardado SAF/MediaStore. Si la búsqueda automática no encuentra letra, la tarjeta permite
+    buscar alternativas por palabras clave o introducir título y artista manualmente; el usuario
+    confirma la coincidencia que se guarda para la pista activa. \\
+  \ruta{ui/player/AudioEditorScreen.kt}, \ruta{AudioEditorContent.kt} &
+    \cod{AudioEditorScreen} conecta el ViewModel y la previsualización Android;
+    \cod{AudioEditorContent} expone recorte, ajuste global LRC/SRT y ganancia por segmentos. \\
+  \ruta{ui/player/AudioEditorViewModel.kt}, \ruta{AudioEditorController.kt} &
+    El ViewModel expone el estado observable; el controller coordina las reglas del editor,
+    \cod{AudioTrimmer}, \cod{AudioGainProcessor} y el almacenamiento de letras. \\
   \ruta{ui/playlists/*} & \cod{PlaylistsScreen} (selector de fotos del sistema),
     \cod{PlaylistsViewModel} y \cod{QuickPlaylist.kt} (botón flotante arrastrable con todas
     las playlists). \\

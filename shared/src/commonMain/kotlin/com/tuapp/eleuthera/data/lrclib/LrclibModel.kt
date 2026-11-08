@@ -20,6 +20,8 @@ data class LrclibLyrics(
 )
 
 interface LyricsSearchService {
+    suspend fun searchLyrics(query: String, refreshCache: Boolean = false): List<LrclibLyrics>
+
     suspend fun searchLyricsByMetadata(
         trackName: String,
         artistName: String,
