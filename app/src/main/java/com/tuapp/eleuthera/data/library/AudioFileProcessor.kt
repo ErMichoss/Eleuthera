@@ -74,6 +74,7 @@ class AudioFileProcessor @Inject constructor(
                     addAll(
                         listOf(
                             "-map_metadata", "0",
+                            "-map_metadata:s:a", "0:s:a:0",
                             "-metadata", "title=${metadata.title}",
                             "-metadata", "artist=${metadata.artist}",
                             "-metadata", "album=${metadata.album}",

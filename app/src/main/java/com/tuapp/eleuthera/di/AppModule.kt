@@ -9,7 +9,10 @@ import com.tuapp.eleuthera.data.db.PlaylistDao
 import com.tuapp.eleuthera.data.db.buildAppDatabase
 import com.tuapp.eleuthera.data.lrclib.LrclibService
 import com.tuapp.eleuthera.data.lrclib.LyricsRepository
+import com.tuapp.eleuthera.data.library.AndroidAudioGainProcessor
+import com.tuapp.eleuthera.data.library.AudioGainProcessor
 import com.tuapp.eleuthera.data.metadata.AndroidLyricsStorage
+import com.tuapp.eleuthera.ui.lyrics.LyricsStorage
 import com.tuapp.eleuthera.data.settings.PreferenceStores
 import com.tuapp.eleuthera.ui.lyrics.LyricsController
 import com.tuapp.eleuthera.ui.lyrics.LyricsLogLevel
@@ -78,4 +81,16 @@ object AppModule {
 
     @Provides
     fun provideFolderTrackDao(db: AppDatabase): FolderTrackDao = db.folderTrackDao()
+
+    @Provides
+    @Singleton
+    fun provideAudioTrimmer(trimmer: com.tuapp.eleuthera.data.library.AndroidAudioTrimmer): com.tuapp.eleuthera.data.library.AudioTrimmer = trimmer
+
+    @Provides
+    @Singleton
+    fun provideAudioGainProcessor(processor: AndroidAudioGainProcessor): AudioGainProcessor = processor
+
+    @Provides
+    @Singleton
+    fun provideLyricsStorage(storage: AndroidLyricsStorage): LyricsStorage = storage
 }

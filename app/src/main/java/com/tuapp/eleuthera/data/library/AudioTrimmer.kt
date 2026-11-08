@@ -2,8 +2,8 @@ package com.tuapp.eleuthera.data.library
 
 import android.content.Context
 import android.media.MediaMetadataRetriever
-import android.net.Uri
 import com.tuapp.eleuthera.domain.model.Track
+import com.tuapp.eleuthera.platform.PlatformUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
 import javax.inject.Inject
@@ -12,11 +12,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Singleton
-class AudioTrimmer @Inject constructor(
+class AndroidAudioTrimmer @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val processor: AudioFileProcessor,
-) {
-    suspend fun durationMs(uri: Uri): Long = withContext(Dispatchers.IO) {
+) : AudioTrimmer {
+    override suspend fun durationMs(uri: PlatformUri): Long = withContext(Dispatchers.IO) {
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, uri)
@@ -27,12 +27,13 @@ class AudioTrimmer @Inject constructor(
         }
     }
 
-    suspend fun trim(
+    override suspend fun trim(
         track: Track,
         startMs: Long,
         endMs: Long,
         durationMs: Long,
         removeSelectedSegment: Boolean,
+        overwriteExisting: Boolean,
     ): Track {
         require(startMs >= 0 && endMs > startMs) { "El tramo seleccionado no es válido." }
         require(durationMs > 0 && endMs <= durationMs) {
@@ -43,6 +44,7 @@ class AudioTrimmer @Inject constructor(
                 "No se puede quitar toda la canción."
             }
         }
+
         val outputDurationMs = if (removeSelectedSegment) {
             durationMs - (endMs - startMs)
         } else {

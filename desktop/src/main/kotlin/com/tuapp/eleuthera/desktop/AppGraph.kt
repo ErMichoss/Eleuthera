@@ -4,11 +4,16 @@ import com.tuapp.eleuthera.data.musicbrainz.MusicBrainzService
 import com.tuapp.eleuthera.ui.musicbrainz.MusicBrainzController
 import com.tuapp.eleuthera.data.db.AppDatabase
 import com.tuapp.eleuthera.data.db.buildAppDatabase
+import com.tuapp.eleuthera.data.library.DesktopAudioFileProcessor
+import com.tuapp.eleuthera.data.library.DesktopAudioGainProcessor
 import com.tuapp.eleuthera.data.download.DesktopDownloads
 import com.tuapp.eleuthera.data.importer.DesktopImports
+import com.tuapp.eleuthera.data.metadata.DesktopLyricsStorage
 import com.tuapp.eleuthera.data.settings.DesktopCookieStore
 import com.tuapp.eleuthera.data.update.DesktopUpdateChecker
+import com.tuapp.eleuthera.data.library.DesktopAudioTrimmer
 import com.tuapp.eleuthera.data.library.DesktopLibrary
+import com.tuapp.eleuthera.ui.player.AudioEditorController
 import com.tuapp.eleuthera.data.lrclib.LrclibService
 import com.tuapp.eleuthera.data.playlist.DesktopPlaylistStore
 import com.tuapp.eleuthera.data.settings.DesktopLibrarySettings
@@ -71,6 +76,16 @@ object AppGraph {
     /** Versión de la app (la pone Gradle al arrancar; "dev" si no se sabe). */
     val appVersion: String = System.getProperty("eleuthera.version") ?: "dev"
     val updates by lazy { DesktopUpdateChecker(stores, appVersion) }
+
+    val audioFileProcessor by lazy {
+        DesktopAudioFileProcessor(library, database.playlistDao())
+    }
+    val audioTrimmer by lazy { DesktopAudioTrimmer(audioFileProcessor) }
+    val audioGainProcessor by lazy { DesktopAudioGainProcessor(audioFileProcessor) }
+    val lyricsStorage by lazy { DesktopLyricsStorage() }
+    val audioEditorController by lazy {
+        AudioEditorController(audioTrimmer, audioGainProcessor, lyricsStorage)
+    }
 
     /** Modelos de las pantallas comunes (lo que en Android son ViewModels). */
     val skinStore by lazy { DesktopProgressSkinStore(File(DesktopPaths.dataDir, "progress_skins")) }

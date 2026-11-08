@@ -52,6 +52,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.tuapp.eleuthera.domain.model.ThemeConfig
+import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.common.LocalNowPlaying
 import com.tuapp.eleuthera.ui.library.LibraryContent
 import com.tuapp.eleuthera.ui.library.TrackActions
@@ -125,6 +126,7 @@ private fun App() {
     var showPlayer by remember { mutableStateOf(false) }
     // Canción o lista para la que se está eligiendo playlist (null = diálogo cerrado).
     var playlistTarget by remember { mutableStateOf<PlaylistTarget?>(null) }
+    var trimTarget by remember { mutableStateOf<Track?>(null) }
 
     // Avisos de las pantallas comunes (lo que en Android es un Toast).
     val snackbar = remember { SnackbarHostState() }
@@ -147,6 +149,7 @@ private fun App() {
             onPlayNext = { player.playNext(it) },
             onAddToQueue = { player.addToQueue(it) },
             onAddToPlaylist = { playlistTarget = PlaylistTarget(it) },
+            onEditAudio = { track -> trimTarget = track },
             onPlayNextAll = { player.playNext(it) },
             onAddAllToQueue = { player.addToQueue(it) },
             onAddAllToPlaylist = { label, tracks -> playlistTarget = PlaylistTarget(label, tracks) },
@@ -219,6 +222,16 @@ private fun App() {
 
             playlistTarget?.let { target ->
                 AddToPlaylistDialog(target, AppGraph.playlists, onDismiss = { playlistTarget = null })
+            }
+
+            trimTarget?.let { track ->
+                DesktopAudioEditorDialog(
+                    track = track,
+                    controller = AppGraph.audioEditorController,
+                    skinStore = AppGraph.skinStore,
+                    player = player,
+                    onClose = { trimTarget = null },
+                )
             }
 
             // Reproductor completo, por encima de todo. Centrado para que en una ventana
