@@ -140,12 +140,20 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
     }
 
     override fun cycleRepeat() {
+        val wasEnded = current != null && !engine.isPlaying && index == items.size - 1
         repeat = when (repeat) {
             RepeatMode.OFF -> RepeatMode.ALL
             RepeatMode.ALL -> RepeatMode.ONE
             RepeatMode.ONE -> RepeatMode.OFF
         }
         ensureNextCycle()
+        if (wasEnded) {
+            when (repeat) {
+                RepeatMode.ALL -> if (index + 1 < items.size) startAt(index + 1)
+                RepeatMode.ONE -> startAt(index)
+                RepeatMode.OFF -> {}
+            }
+        }
         sync()
     }
 
