@@ -1,5 +1,6 @@
 package com.tuapp.eleuthera.ui.player
 
+/** Parser and timestamp edits shared by Android and desktop audio editors. */
 data class LyricsPreviewLine(
     val startMs: Long?,
     val text: String,

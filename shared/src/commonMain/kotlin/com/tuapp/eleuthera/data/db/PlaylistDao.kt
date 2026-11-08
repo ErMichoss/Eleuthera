@@ -54,8 +54,19 @@ abstract class PlaylistDao {
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId IN (:trackIds)")
     abstract suspend fun removeTracks(playlistId: Long, trackIds: List<Long>)
 
-    @Query("UPDATE playlist_tracks SET trackId = :newTrackId WHERE trackId = :oldTrackId")
-    abstract suspend fun replaceTrackId(oldTrackId: Long, newTrackId: Long)
+    @Query("UPDATE OR IGNORE playlist_tracks SET trackId = :newTrackId WHERE trackId = :oldTrackId")
+    abstract suspend fun updateTrackIdIfAbsent(oldTrackId: Long, newTrackId: Long)
+
+    @Query("DELETE FROM playlist_tracks WHERE trackId = :trackId")
+    abstract suspend fun deleteTrackId(trackId: Long)
+
+    /** Replaces an ID everywhere, deduplicating if the destination ID is already in a playlist. */
+    @Transaction
+    open suspend fun replaceTrackId(oldTrackId: Long, newTrackId: Long) {
+        if (oldTrackId == newTrackId) return
+        updateTrackIdIfAbsent(oldTrackId, newTrackId)
+        deleteTrackId(oldTrackId)
+    }
 
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId")
     abstract suspend fun clear(playlistId: Long)

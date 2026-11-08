@@ -1,6 +1,5 @@
 package com.tuapp.eleuthera.ui.player
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -51,6 +50,7 @@ import com.tuapp.eleuthera.data.library.AudioGainSegment
 import com.tuapp.eleuthera.data.settings.LoadedSkin
 import com.tuapp.eleuthera.domain.model.Track
 import com.tuapp.eleuthera.ui.common.TrackArt
+import com.tuapp.eleuthera.ui.platform.PlatformBackHandler
 
 /** Stateless editor UI: editing and playback actions are supplied by the screen wrapper. */
 @Composable
@@ -112,7 +112,7 @@ fun AudioEditorContent(
         previewText?.let(LyricsTimestampEditor::previewLines).orEmpty()
     }
 
-    BackHandler(enabled = !state.saving, onBack = onClose)
+    PlatformBackHandler(enabled = !state.saving, onBack = onClose)
     Surface(modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),

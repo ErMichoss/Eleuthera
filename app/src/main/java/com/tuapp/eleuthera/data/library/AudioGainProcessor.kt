@@ -5,21 +5,15 @@ import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class AudioGainSegment(
-    val id: Long,
-    val startMs: Long,
-    val endMs: Long,
-    val gainDb: Float,
-)
-
 @Singleton
-class AudioGainProcessor @Inject constructor(
+class AndroidAudioGainProcessor @Inject constructor(
     private val processor: AudioFileProcessor,
-) {
-    suspend fun boostSegments(
+) : AudioGainProcessor {
+    override suspend fun boostSegments(
         track: Track,
         durationMs: Long,
         segments: List<AudioGainSegment>,
+        overwriteExisting: Boolean,
     ): Track {
         require(durationMs > 0) { "La duración del audio no es válida." }
         require(segments.isNotEmpty()) { "Añade al menos un segmento de volumen." }

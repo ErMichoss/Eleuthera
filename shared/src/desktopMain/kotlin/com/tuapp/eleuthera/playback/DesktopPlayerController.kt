@@ -175,6 +175,20 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
         sync()
     }
 
+    fun updateTrack(oldTrackId: Long, updatedTrack: Track) {
+        context = context.map { if (it.id == oldTrackId) updatedTrack else it }
+        val wasPlaying = engine.isPlaying
+        for (i in items.indices) {
+            if (items[i].track.id == oldTrackId) {
+                items[i] = items[i].copy(track = updatedTrack)
+                if (i == index) {
+                    startAt(i, autoplay = wasPlaying)
+                }
+            }
+        }
+        sync()
+    }
+
     override fun move(from: Int, to: Int) {
         val valid = (index + 1) until items.size
         if (from in valid && to in valid && from != to) {
@@ -196,7 +210,7 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
 
     // ---- Internos ----
 
-    private fun startAt(i: Int) {
+    private fun startAt(i: Int, autoplay: Boolean = true) {
         index = i
         val entry = items[i]
         _error.value = null
@@ -206,7 +220,7 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
             _error.value = "No se puede abrir ${entry.track.title}"
             engine.stop()
         } else {
-            engine.load(file)
+            engine.load(file, autoplay = autoplay)
             artwork = null
             scope.launch {
                 val bytes = Covers.bytes(file)
