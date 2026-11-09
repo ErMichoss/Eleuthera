@@ -179,19 +179,26 @@ class FfmpegAudioPlayer(
     private fun pump(p: Process, l: SourceDataLine, gen: Int, inputFinished: AtomicBoolean) {
         val buffer = ByteArray(16 * 1024)
         var total = 0L
-        var carry = -1   // byte suelto de una muestra partida entre dos lecturas
+        var carrySize = 0
         try {
             p.inputStream.use { input ->
                 while (generation.get() == gen) {
-                    var n = input.read(buffer, if (carry >= 0) 1 else 0, buffer.size - 1)
-                    if (n < 0) break
-                    if (carry >= 0) { buffer[0] = carry.toByte(); n += 1; carry = -1 }
-                    // Solo muestras completas (2 bytes); la última mitad se guarda para la próxima.
-                    if (n % 2 == 1) { carry = buffer[n - 1].toInt() and 0xFF; n -= 1 }
-                    applyVolume(buffer, n)
-                    total += n
-                    l.write(buffer, 0, n)
-                    bytesWritten += n
+                    val bytesRead = input.read(buffer, carrySize, buffer.size - carrySize)
+                    if (bytesRead < 0) break
+
+                    val available = carrySize + bytesRead
+                    val alignedSize = available - available % frameSize
+                    if (alignedSize > 0) {
+                        applyVolume(buffer, alignedSize)
+                        total += alignedSize
+                        l.write(buffer, 0, alignedSize)
+                        bytesWritten += alignedSize
+                    }
+
+                    carrySize = available - alignedSize
+                    if (carrySize > 0) {
+                        System.arraycopy(buffer, alignedSize, buffer, 0, carrySize)
+                    }
                 }
             }
             inputFinished.set(true)
