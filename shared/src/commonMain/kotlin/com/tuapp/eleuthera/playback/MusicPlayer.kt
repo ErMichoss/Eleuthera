@@ -47,8 +47,9 @@ data class PlayerState(
  *
  *   [ya escuchadas] · canción actual · cola del usuario · cola por defecto
  *
- * - Al tocar una canción, la cola por defecto es el resto de esa lista: desde la canción
- *   hacia abajo, o la lista entera barajada si el aleatorio está activo.
+ * - Al tocar una canción de una lista, las canciones anteriores se conservan como historial
+ *   para poder volver atrás; la cola por defecto es el resto desde la canción seleccionada.
+ * - El aleatorio reorganiza la cola futura, sin alterar la canción elegida.
  * - Con "repetir playlist", al llegar a la última canción se genera otra vuelta de la lista.
  *
  * Todos los métodos se llaman desde el hilo principal.

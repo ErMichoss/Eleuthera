@@ -120,6 +120,7 @@ private enum class Section(val label: String, val icon: ImageVector) {
 private fun App() {
     val player = AppGraph.player
     val playerUi = AppGraph.playerUi
+    val lyrics by AppGraph.lyricsUi.state.collectAsState()
     val nowPlaying by playerUi.nowPlaying.collectAsState()
     val scope = rememberCoroutineScope()
     var section by remember { mutableStateOf(Section.LIBRARY) }
@@ -249,6 +250,26 @@ private fun App() {
                         vm = playerUi,
                         onClose = { showPlayer = false },
                         modifier = Modifier.widthIn(max = 640.dp),
+                        extraContent = { positionMs ->
+                            if (nowPlaying.mediaId != null) {
+                                com.tuapp.eleuthera.ui.player.LyricsContent(
+                                    text = lyrics.text.takeIf { it != null && lyrics.mediaUri == player.state.value.mediaUri },
+                                    loading = lyrics.loading,
+                                    error = lyrics.error,
+                                    positionMs = positionMs,
+                                    subtitleMessage = lyrics.subtitleMessage,
+                                    candidates = lyrics.candidates,
+                                    searchingCandidates = lyrics.searchingCandidates,
+                                    candidateSearchError = lyrics.candidateSearchError,
+                                    trackTitle = lyrics.trackTitle,
+                                    trackArtist = lyrics.trackArtist,
+                                    onSearchMore = AppGraph.lyricsUi::searchMoreCandidates,
+                                    onSearchManual = AppGraph.lyricsUi::searchManualCandidates,
+                                    onSelectCandidate = AppGraph.lyricsUi::selectCandidate,
+                                    scrollablePreview = true,
+                                )
+                            }
+                        },
                         extraControls = {
                             Row(
                                 Modifier.fillMaxWidth().padding(top = 8.dp),
