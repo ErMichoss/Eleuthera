@@ -237,8 +237,10 @@ class PlayerController @Inject constructor(
         val rest = if (shuffle) tracks.filterIndexed { i, _ -> i != start }.shuffled()
         else tracks.drop(start + 1)
 
-        val items = listOf(tracks[start].toMediaItem()) + pendingUser + rest.map { it.toMediaItem() }
-        c.setMediaItems(items, 0, 0L)
+        val history = tracks.take(start).map { it.toMediaItem() }
+        val items = history + listOf(tracks[start].toMediaItem()) +
+            pendingUser + rest.map { it.toMediaItem() }
+        c.setMediaItems(items, start, 0L)
         applyRepeatToPlayer(c)
         c.prepare()
         c.play()

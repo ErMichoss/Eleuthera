@@ -15,7 +15,9 @@ import com.tuapp.eleuthera.data.library.DesktopAudioTrimmer
 import com.tuapp.eleuthera.data.library.DesktopLibrary
 import com.tuapp.eleuthera.ui.player.AudioEditorController
 import com.tuapp.eleuthera.data.lrclib.LrclibService
+import com.tuapp.eleuthera.data.lrclib.LyricsRepository
 import com.tuapp.eleuthera.data.playlist.DesktopPlaylistStore
+import com.tuapp.eleuthera.ui.lyrics.LyricsController
 import com.tuapp.eleuthera.data.settings.DesktopLibrarySettings
 import com.tuapp.eleuthera.data.settings.DesktopProgressSkinStore
 import com.tuapp.eleuthera.data.settings.DownloadSettings
@@ -90,6 +92,18 @@ object AppGraph {
     /** Modelos de las pantallas comunes (lo que en Android son ViewModels). */
     val skinStore by lazy { DesktopProgressSkinStore(File(DesktopPaths.dataDir, "progress_skins")) }
     val playerUi by lazy { DesktopPlayerUi(player, skinStore.active) }
+    val lyricsUi by lazy {
+        DesktopLyricsUi(
+            player = player,
+            controller = LyricsController(
+                scope = uiScope,
+                repository = LyricsRepository(lrclib),
+                storage = lyricsStorage,
+            ) { _, message, error ->
+                println(message + error?.let { ": ${it.message}" } ?: "")
+            },
+        )
+    }
     val libraryModel by lazy { DesktopLibraryModel(library) }
     val playlists by lazy { PlaylistsController(uiScope, playlistStore) }
     val themeUi by lazy { DesktopThemeUi(themeRepository) }

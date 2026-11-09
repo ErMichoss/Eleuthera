@@ -158,6 +158,7 @@ fun LyricsContent(
     onSearchMore: () -> Unit = {},
     onSearchManual: (String, String) -> Unit = { _, _ -> },
     onSelectCandidate: (LrclibLyrics) -> Unit = {},
+    scrollablePreview: Boolean = false,
 ) {
     var expanded by rememberSaveable(text) { mutableStateOf(false) }
     var showOtherLyrics by remember(trackTitle, trackArtist) { mutableStateOf(false) }
@@ -173,7 +174,7 @@ fun LyricsContent(
     }
     val lines = remember(text) { text?.let(::parseLyricsLines).orEmpty() }
     val activeIndex = lines.indexOfLast { it.startMs != null && it.startMs <= positionMs }
-    val visibleLines = if (expanded || lines.size <= LYRICS_PREVIEW_LINES) {
+    val visibleLines = if (expanded || scrollablePreview || lines.size <= LYRICS_PREVIEW_LINES) {
         lines.indices.toList()
     } else {
         val first = (activeIndex - 1).coerceAtLeast(0)
@@ -184,7 +185,7 @@ fun LyricsContent(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 16.dp)
-            .heightIn(min = 88.dp, max = 320.dp)
+            .heightIn(min = 88.dp, max = if (scrollablePreview && !expanded) 100.dp else 320.dp)
             .clickable(enabled = !text.isNullOrBlank()) { expanded = !expanded },
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -192,7 +193,7 @@ fun LyricsContent(
     ) {
         Column(
             Modifier.padding(16.dp).then(
-                if (expanded || candidates.isNotEmpty()) {
+                if (expanded || candidates.isNotEmpty() || scrollablePreview) {
                     Modifier.verticalScroll(rememberScrollState())
                 } else {
                     Modifier
@@ -200,7 +201,11 @@ fun LyricsContent(
             ),
         ) {
             Text(
-                if (expanded) "Letra completa" else "Letra · toca para ampliar",
+                when {
+                    expanded -> "Letra completa"
+                    scrollablePreview -> "Letra · desplaza para leer"
+                    else -> "Letra · toca para ampliar"
+                },
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(Modifier.height(8.dp))

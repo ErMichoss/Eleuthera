@@ -2,9 +2,12 @@ package com.tuapp.eleuthera.playback
 
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
+import javax.sound.sampled.LineEvent
+import javax.sound.sampled.LineListener
 import javax.sound.sampled.SourceDataLine
 import kotlin.concurrent.thread
 
@@ -152,11 +155,28 @@ class FfmpegAudioPlayer(
         line = l
         isPlaying = true
 
-        thread(name = "eleuthera-audio", isDaemon = true) { pump(p, l, gen) }
+        val inputFinished = AtomicBoolean(false)
+        l.addLineListener(LineListener { event ->
+            if (event.type == LineEvent.Type.STOP && !inputFinished.get()) {
+                synchronized(this) {
+                    if (generation.get() == gen && line === l && isPlaying && p.isAlive) {
+                        try {
+                            if (!l.isRunning) l.start()
+                        } catch (e: Exception) {
+                            val stoppedAt = runCatching { positionMs }.getOrDefault(startOffsetMs)
+                            park(stoppedAt)
+                            onError("Se interrumpió la salida de audio: ${e.message ?: e.javaClass.simpleName}")
+                        }
+                    }
+                }
+            }
+        })
+
+        thread(name = "eleuthera-audio", isDaemon = true) { pump(p, l, gen, inputFinished) }
     }
 
     /** Hilo lector: copia el PCM de ffmpeg a la línea de audio (con el volumen) hasta que se acabe. */
-    private fun pump(p: Process, l: SourceDataLine, gen: Int) {
+    private fun pump(p: Process, l: SourceDataLine, gen: Int, inputFinished: AtomicBoolean) {
         val buffer = ByteArray(16 * 1024)
         var total = 0L
         var carry = -1   // byte suelto de una muestra partida entre dos lecturas
@@ -174,8 +194,18 @@ class FfmpegAudioPlayer(
                     bytesWritten += n
                 }
             }
-        } catch (_: Exception) {
-            return   // se cerró la línea o el proceso porque se pausó o se cambió de canción
+            inputFinished.set(true)
+        } catch (e: Exception) {
+            if (generation.get() == gen) {
+                synchronized(this) {
+                    if (generation.get() == gen) {
+                        val stoppedAt = runCatching { positionMs }.getOrDefault(startOffsetMs)
+                        park(stoppedAt)
+                        onError("Se interrumpió la salida de audio: ${e.message ?: e.javaClass.simpleName}")
+                    }
+                }
+            }
+            return
         }
         if (generation.get() != gen) return
         l.drain()   // espera a que suene lo que queda en la línea

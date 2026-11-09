@@ -383,6 +383,18 @@ Bórrala desde Biblioteca (menú ⋮ > *Eliminar del dispositivo*), búscala a m
 Android limita el tiempo en segundo plano de algunas apps. Desactiva la optimización de batería para Eleuthera: **Ajustes del sistema > Aplicaciones > Eleuthera > Batería > Sin restricciones**.
 </details>
 
+<details>
+<summary><b>Un juego corta el audio de Eleuthera en Windows</b></summary>
+
+Eleuthera para escritorio no pausa al detectar otra aplicación de audio y no solicita el control exclusivo del dispositivo. Para mezclar su música con el sonido de un juego, Windows debe compartir la salida:
+
+1. Abre **Configuración > Sistema > Sonido > Más opciones de sonido**.
+2. En **Reproducción**, abre **Propiedades** del dispositivo que estás usando.
+3. En **Opciones avanzadas**, desmarca **Permitir que las aplicaciones tomen el control exclusivo de este dispositivo** y **Dar prioridad a las aplicaciones en modo exclusivo**. Aplica los cambios y reinicia el juego.
+
+Si el juego sigue reservando la salida en exclusiva, selecciona otro dispositivo de audio para el juego o Eleuthera. Windows no puede mezclar dos aplicaciones mientras una mantiene el dispositivo en modo exclusivo.
+</details>
+
 ---
 
 ## Para desarrolladores

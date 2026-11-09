@@ -85,10 +85,11 @@ class DesktopPlayerController(initialVolume: Float = 1f) : MusicPlayer {
         else tracks.drop(start + 1)
 
         items.clear()
+        items += tracks.take(start).map { Entry(it, userQueued = false) }
         items += Entry(tracks[start], userQueued = false)
         items += pendingUser
         items += rest.map { Entry(it, userQueued = false) }
-        startAt(0)
+        startAt(start)
     }
 
     override fun playShuffled(tracks: List<Track>) {
