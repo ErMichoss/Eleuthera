@@ -92,16 +92,19 @@ object AppGraph {
     /** Modelos de las pantallas comunes (lo que en Android son ViewModels). */
     val skinStore by lazy { DesktopProgressSkinStore(File(DesktopPaths.dataDir, "progress_skins")) }
     val playerUi by lazy { DesktopPlayerUi(player, skinStore.active) }
+    val lyricsController by lazy {
+        LyricsController(
+            scope = uiScope,
+            repository = LyricsRepository(lrclib),
+            storage = lyricsStorage,
+        ) { _, message, error ->
+            System.err.println(message + error?.let { ": ${it.message}" } ?: "")
+        }
+    }
     val lyricsUi by lazy {
         DesktopLyricsUi(
             player = player,
-            controller = LyricsController(
-                scope = uiScope,
-                repository = LyricsRepository(lrclib),
-                storage = lyricsStorage,
-            ) { _, message, error ->
-                println(message + error?.let { ": ${it.message}" } ?: "")
-            },
+            controller = lyricsController,
         )
     }
     val libraryModel by lazy { DesktopLibraryModel(library) }

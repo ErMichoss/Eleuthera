@@ -159,6 +159,7 @@ fun LyricsContent(
     onSearchManual: (String, String) -> Unit = { _, _ -> },
     onSelectCandidate: (LrclibLyrics) -> Unit = {},
     scrollablePreview: Boolean = false,
+    quickSearchWhenMissing: Boolean = false,
 ) {
     var expanded by rememberSaveable(text) { mutableStateOf(false) }
     var showOtherLyrics by remember(trackTitle, trackArtist) { mutableStateOf(false) }
@@ -210,7 +211,33 @@ fun LyricsContent(
             )
             Spacer(Modifier.height(8.dp))
             if (message != null) {
-                Text(message, style = MaterialTheme.typography.bodyLarge)
+                if (
+                    quickSearchWhenMissing && !loading && error == null && text.isNullOrBlank()
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            onClick = onSearchMore,
+                            enabled = !searchingCandidates,
+                        ) {
+                            if (searchingCandidates) {
+                                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                                Text("Buscando…", style = MaterialTheme.typography.labelSmall)
+                            } else {
+                                Text("Buscar lyrics", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                } else {
+                    Text(message, style = MaterialTheme.typography.bodyLarge)
+                }
             } else {
                 visibleLines.forEach { index ->
                     Text(

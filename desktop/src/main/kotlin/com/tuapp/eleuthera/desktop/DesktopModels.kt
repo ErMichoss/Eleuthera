@@ -3,6 +3,7 @@ package com.tuapp.eleuthera.desktop
 import androidx.compose.ui.graphics.ImageBitmap
 import com.tuapp.eleuthera.data.library.Covers
 import com.tuapp.eleuthera.data.library.DesktopLibrary
+import com.tuapp.eleuthera.data.lrclib.LrclibHttpException
 import com.tuapp.eleuthera.data.lrclib.LrclibLyrics
 import com.tuapp.eleuthera.data.settings.DownloadSettings
 import com.tuapp.eleuthera.data.settings.LoadedSkin
@@ -16,6 +17,8 @@ import com.tuapp.eleuthera.playback.DesktopPlayerController
 import com.tuapp.eleuthera.playback.PlayerState
 import com.tuapp.eleuthera.ui.common.NowPlaying
 import com.tuapp.eleuthera.ui.library.LibraryController
+import com.tuapp.eleuthera.ui.library.LibraryGroup
+import com.tuapp.eleuthera.ui.lyrics.LyricsBatchProgress
 import com.tuapp.eleuthera.ui.lyrics.LyricsController
 import com.tuapp.eleuthera.ui.lyrics.LyricsTrack
 import com.tuapp.eleuthera.ui.player.PlayerUi
@@ -101,8 +104,12 @@ class DesktopLyricsUi(
 ) {
     private val _state = MutableStateFlow(DesktopLyricsUiState())
     val state: StateFlow<DesktopLyricsUiState> = _state
+    val batchProgress: StateFlow<Map<String, LyricsBatchProgress>> = controller.batchProgress
     private var currentTrack: LyricsTrack? = null
     private var candidateJob: Job? = null
+    private var candidateSearchAllowedAtMs = 0L
+    private var serverSearchAllowedAtMs = 0L
+    private var serverCooldownMessage: String? = null
 
     init {
         uiScope.launch {
@@ -179,10 +186,33 @@ class DesktopLyricsUi(
         startCandidateSearch(track, title.trim(), artist.trim())
     }
 
+    fun toggleFolderSearch(group: LibraryGroup) {
+        controller.toggleBatch(
+            key = group.name,
+            tracks = group.tracks.distinctBy { it.uri.toString() }.map { track ->
+                LyricsTrack(
+                    uri = track.uri.toString(),
+                    title = track.title,
+                    artist = track.artist,
+                    durationMs = track.durationMs,
+                )
+            },
+        )
+    }
+
+    fun updateLyricsIfCurrent(uri: String, text: String) {
+        if (player.state.value.mediaUri != uri || _state.value.mediaUri != uri) return
+        _state.value = _state.value.copy(text = text, subtitleMessage = null, error = null)
+    }
+
     fun selectCandidate(candidate: LrclibLyrics) {
         val track = currentTrack ?: return
         if (player.state.value.mediaUri != track.uri) return
         candidateJob?.cancel()
+        _state.value = _state.value.copy(
+            searchingCandidates = true,
+            candidateSearchError = null,
+        )
         candidateJob = uiScope.launch {
             try {
                 val result = controller.saveCandidate(track, candidate) { player.state.value.mediaUri == track.uri }
@@ -211,6 +241,23 @@ class DesktopLyricsUi(
 
     private fun startCandidateSearch(track: LyricsTrack, title: String, artist: String) {
         if (player.state.value.mediaUri != track.uri || _state.value.loading) return
+        val now = System.nanoTime() / NANOS_PER_MILLISECOND
+        if (now < serverSearchAllowedAtMs) {
+            _state.value = _state.value.copy(
+                candidates = emptyList(),
+                candidateSearchError = serverCooldownMessage
+                    ?: "El servidor está ocupado ahora mismo; inténtalo de nuevo más tarde.",
+            )
+            return
+        }
+        if (now < candidateSearchAllowedAtMs) {
+            _state.value = _state.value.copy(
+                candidates = emptyList(),
+                candidateSearchError = "Espera un momento antes de volver a buscar otras coincidencias.",
+            )
+            return
+        }
+        candidateSearchAllowedAtMs = now + SEARCH_COOLDOWN_MS
 
         candidateJob?.cancel()
         _state.value = _state.value.copy(
@@ -233,14 +280,37 @@ class DesktopLyricsUi(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (e is LrclibHttpException && e.statusCode in RATE_LIMITED_STATUS_CODES) {
+                    val retryDelayMs = maxOf(
+                        e.retryAfterMs ?: SERVER_ERROR_COOLDOWN_MS,
+                        SEARCH_COOLDOWN_MS,
+                    )
+                    serverSearchAllowedAtMs = System.nanoTime() / NANOS_PER_MILLISECOND + retryDelayMs
+                    serverCooldownMessage = e.toManualSearchMessage()
+                }
                 if (player.state.value.mediaUri == track.uri) {
                     _state.value = _state.value.copy(
                         searchingCandidates = false,
-                        candidateSearchError = e.message ?: "No se pudo buscar letras alternativas.",
+                        candidateSearchError = e.toManualSearchMessage(),
                     )
                 }
             }
         }
+    }
+
+    private fun Exception.toManualSearchMessage(): String = when {
+        this is LrclibHttpException && statusCode == 503 ->
+            "El servidor está ocupado ahora mismo; inténtalo de nuevo más tarde."
+        this is LrclibHttpException && statusCode == 429 ->
+            "El servidor está recibiendo demasiadas búsquedas; inténtalo de nuevo más tarde."
+        else -> "No se pudo completar la búsqueda de otras letras. Inténtalo de nuevo más tarde."
+    }
+
+    private companion object {
+        const val SEARCH_COOLDOWN_MS = 5_000L
+        const val SERVER_ERROR_COOLDOWN_MS = 30_000L
+        const val NANOS_PER_MILLISECOND = 1_000_000L
+        val RATE_LIMITED_STATUS_CODES = setOf(429, 503)
     }
 }
 
