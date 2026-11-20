@@ -143,8 +143,9 @@ Eleuthera no descarga el audio de Spotify ni de Qobuz, que está protegido. Lo q
 1. Entra en [exportify.app](https://exportify.app) desde el ordenador o el móvil.
 2. Inicia sesión con tu cuenta de Spotify.
 3. Verás todas tus playlists, incluida **Liked Songs** (Canciones que te gustan).
-4. Pulsa **Export** en la que quieras (también hay una opción para exportarlas todas).
-5. Obtienes un archivo `.csv` por playlist.
+4. Comprueba que arriba en idioma este puesto en **English** para el CSV se forme bien.
+5. Pulsa **Export** en la que quieras (también hay una opción para exportarlas todas).
+6. Obtienes un archivo `.csv` por playlist.
 
 </details>
 
