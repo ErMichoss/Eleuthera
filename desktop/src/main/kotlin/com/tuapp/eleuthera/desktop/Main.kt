@@ -120,7 +120,9 @@ private enum class Section(val label: String, val icon: ImageVector) {
 private fun App() {
     val player = AppGraph.player
     val playerUi = AppGraph.playerUi
-    val lyrics by AppGraph.lyricsUi.state.collectAsState()
+    val lyricsUi = AppGraph.lyricsUi
+    val lyrics by lyricsUi.state.collectAsState()
+    val lyricsBatchProgress by lyricsUi.batchProgress.collectAsState()
     val nowPlaying by playerUi.nowPlaying.collectAsState()
     val scope = rememberCoroutineScope()
     var section by remember { mutableStateOf(Section.LIBRARY) }
@@ -183,6 +185,8 @@ private fun App() {
                                 Section.LIBRARY -> LibraryContent(
                                     controller = AppGraph.libraryModel.controller,
                                     actions = actions,
+                                    onSearchFolderLyrics = lyricsUi::toggleFolderSearch,
+                                    folderLyricsProgress = lyricsBatchProgress,
                                     onConfirmDelete = { track ->
                                         scope.launch { AppGraph.libraryModel.delete(track)?.let(toast) }
                                     },
@@ -231,6 +235,7 @@ private fun App() {
                     controller = AppGraph.audioEditorController,
                     skinStore = AppGraph.skinStore,
                     player = player,
+                    onLyricsSaved = lyricsUi::updateLyricsIfCurrent,
                     onClose = { trimTarget = null },
                 )
             }
@@ -263,10 +268,11 @@ private fun App() {
                                     candidateSearchError = lyrics.candidateSearchError,
                                     trackTitle = lyrics.trackTitle,
                                     trackArtist = lyrics.trackArtist,
-                                    onSearchMore = AppGraph.lyricsUi::searchMoreCandidates,
-                                    onSearchManual = AppGraph.lyricsUi::searchManualCandidates,
-                                    onSelectCandidate = AppGraph.lyricsUi::selectCandidate,
+                                    onSearchMore = lyricsUi::searchMoreCandidates,
+                                    onSearchManual = lyricsUi::searchManualCandidates,
+                                    onSelectCandidate = lyricsUi::selectCandidate,
                                     scrollablePreview = true,
+                                    quickSearchWhenMissing = true,
                                 )
                             }
                         },

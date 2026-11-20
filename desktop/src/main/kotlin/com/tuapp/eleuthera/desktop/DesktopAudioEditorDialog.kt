@@ -42,6 +42,7 @@ fun DesktopAudioEditorDialog(
     controller: AudioEditorController,
     skinStore: DesktopProgressSkinStore,
     player: DesktopPlayerController,
+    onLyricsSaved: (String, String) -> Unit = { _, _ -> },
     onClose: () -> Unit,
 ) {
     val skin by skinStore.active.collectAsState(null)
@@ -139,6 +140,7 @@ fun DesktopAudioEditorDialog(
             savedLyrics = result.savedLyrics,
             saveMessage = result.message,
         )
+        result.savedLyrics?.let { onLyricsSaved(track.uri.toString(), it) }
     }
 
     fun save(current: AudioEditorState, overwriteExisting: Boolean) {
